@@ -1,0 +1,1 @@
+{"version":3,"file":"writeAuditLog.js","sourceRoot":"","sources":["../../src/audit/writeAuditLog.ts"],"names":[],"mappings":";;AAiDA,sCAOC;AAxDD,wDAAmE;AA6CnE;;;GAGG;AACI,KAAK,UAAU,aAAa,CAAC,OAAwB;IAC1D,MAAM,EAAE,GAAG,IAAA,wBAAY,GAAE,CAAA;IAEzB,MAAM,EAAE,CAAC,UAAU,CAAC,YAAY,CAAC,CAAC,GAAG,CAAC;QACpC,GAAG,OAAO;QACV,SAAS,EAAE,sBAAU,CAAC,eAAe,EAAE;KACxC,CAAC,CAAA;AACJ,CAAC"}

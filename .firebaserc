@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "obor-c213d",
+    "production": "obor-c213d"
+  },
+  "targets": {},
+  "etags": {
+    "obor-c213d": {
+      "extensionInstances": {
+        "firestore-send-email": "54c2826fdc68a32bc7a6783a08a13d0c4da251c774c88a657f7a6b6872640227"
+      }
+    }
+  }
+}

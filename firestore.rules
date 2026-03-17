@@ -1,0 +1,361 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // Returns the membership map for a given boatId from Custom Claims.
+    // Shape: { role: string, status: string, boatName?: string }
+    function getMembership(boatId) {
+      return request.auth.token.get('memberships', {})[boatId];
+    }
+
+    function isActiveIn(boatId) {
+      let m = getMembership(boatId);
+      return isAuthenticated() && m != null && m.status == 'active';
+    }
+
+    function getRoleIn(boatId) {
+      let m = getMembership(boatId);
+      return m != null ? m.role : null;
+    }
+
+    function hasRoleIn(boatId, role) {
+      return isActiveIn(boatId) && getRoleIn(boatId) == role;
+    }
+
+    function hasAnyRoleIn(boatId, roles) {
+      return isActiveIn(boatId) && getRoleIn(boatId) in roles;
+    }
+
+    function isAdminOf(boatId) {
+      return hasRoleIn(boatId, 'admin');
+    }
+
+    function isTreasurerOrAdmin(boatId) {
+      return hasAnyRoleIn(boatId, ['treasurer', 'admin']);
+    }
+
+    function isMaintenanceMgrOrAdmin(boatId) {
+      return hasAnyRoleIn(boatId, ['maintenanceManager', 'admin']);
+    }
+
+    // Resolves the current user's partnerId for a given boat.
+    // boat_members document ID: {userId}_{boatId}
+    function getMyPartnerId(boatId) {
+      return get(/databases/$(database)/documents/boat_members/$(uid() + '_' + boatId)).data.partnerId;
+    }
+
+    // ============================================================
+    // users — global profile, no boat scope
+    // ============================================================
+
+    match /users/{userId} {
+      // Each user reads and updates only their own profile
+      allow read: if isAuthenticated() && uid() == userId;
+      allow create: if isAuthenticated() && uid() == userId;
+      // Only allow updating safe fields; createdAt is immutable
+      allow update: if isAuthenticated()
+        && uid() == userId
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['createdAt', 'lastLoginAt']);
+    }
+
+    // ============================================================
+    // user_tokens — FCM tokens per user
+    // ============================================================
+
+    match /user_tokens/{userId} {
+      // Each user manages only their own push tokens
+      allow read, create, update, delete: if isAuthenticated() && uid() == userId;
+    }
+
+    // ============================================================
+    // boats — tenant root
+    // ============================================================
+
+    match /boats/{boatId} {
+      allow read: if isAuthenticated() && isActiveIn(boatId);
+      // Admin can update boat details; ownerUserId and memberCount are locked
+      allow update: if isAdminOf(boatId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['ownerUserId', 'memberCount', 'createdAt']);
+      // Create / delete only via Cloud Functions (admin SDK)
+    }
+
+    // ============================================================
+    // boat_members — membership per boat (doc ID: {userId}_{boatId})
+    // ============================================================
+
+    match /boat_members/{memberId} {
+      // Active members of the same boat may read all member records
+      allow read: if isAuthenticated() && (
+        uid() == resource.data.userId ||
+        isActiveIn(resource.data.boatId)
+      );
+      // All writes via Cloud Functions (admin SDK)
+    }
+
+    // ============================================================
+    // partners — financial entity per boat
+    // ============================================================
+
+    match /partners/{partnerId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // A partner may update only their own contact fields.
+      // Credits, financialStatus, status are locked — Cloud Functions only.
+      allow update: if isAuthenticated()
+        && isActiveIn(resource.data.boatId)
+        && resource.data.userId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['fullName', 'phone', 'notes', 'updatedAt'])
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['weekdayCreditsBalance', 'weekendCreditsBalance',
+                     'financialStatus', 'status', 'userId', 'boatId',
+                     'createdAt', 'joinedAt']);
+      // Create / delete via Cloud Functions
+    }
+
+    // ============================================================
+    // invitations — boat invitations
+    // ============================================================
+
+    match /invitations/{invitationId} {
+      // Any authenticated user may read a pending invitation (needed to accept via token)
+      // Admins may read all invitations for their boat
+      allow read: if isAuthenticated() && (
+        resource.data.status == 'pending' ||
+        isAdminOf(resource.data.boatId)
+      );
+      // All writes via Cloud Functions
+    }
+
+    // ============================================================
+    // bookings
+    // ============================================================
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // All writes via Cloud Functions — no direct client writes
+    }
+
+    // ============================================================
+    // credit_transactions
+    // ============================================================
+
+    match /credit_transactions/{txId} {
+      // Treasurer / admin see all; partner sees only their own partnerId
+      allow read: if isAuthenticated() && (
+        isTreasurerOrAdmin(resource.data.boatId) ||
+        (isActiveIn(resource.data.boatId) &&
+         resource.data.partnerId == getMyPartnerId(resource.data.boatId))
+      );
+      // All writes via Cloud Functions
+    }
+
+    // ============================================================
+    // charges
+    // ============================================================
+
+    match /charges/{chargeId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // Writes via Cloud Functions (createCharge, publishCharge)
+    }
+
+    // ============================================================
+    // partner_invoices
+    // ============================================================
+
+    match /partner_invoices/{invoiceId} {
+      // Treasurer / admin see all; partner sees only their own invoice
+      allow read: if isAuthenticated() && (
+        isTreasurerOrAdmin(resource.data.boatId) ||
+        (isActiveIn(resource.data.boatId) &&
+         resource.data.partnerId == getMyPartnerId(resource.data.boatId))
+      );
+      // All writes via Cloud Functions
+    }
+
+    // ============================================================
+    // payments
+    // ============================================================
+
+    match /payments/{paymentId} {
+      // Treasurer / admin see all; partner sees only their own payments
+      allow read: if isAuthenticated() && (
+        isTreasurerOrAdmin(resource.data.boatId) ||
+        (isActiveIn(resource.data.boatId) &&
+         resource.data.partnerId == getMyPartnerId(resource.data.boatId))
+      );
+      // All writes via Cloud Functions (registerPayment)
+    }
+
+    // ============================================================
+    // maintenance_tickets
+    // ============================================================
+
+    match /maintenance_tickets/{ticketId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // Any active member may open a ticket directly (status must be 'open')
+      // Locked fields on create: assignedToUserId, resolvedAt, closedAt must be absent/null
+      allow create: if isAuthenticated()
+        && isActiveIn(request.resource.data.boatId)
+        && request.resource.data.createdByUserId == uid()
+        && request.resource.data.status == 'open'
+        && !request.resource.data.keys().hasAny(['assignedToUserId', 'resolvedAt', 'closedAt']);
+      // Status updates and assignment via Cloud Functions (updateMaintenanceStatus)
+    }
+
+    // ============================================================
+    // maintenance_updates
+    // ============================================================
+
+    match /maintenance_updates/{updateId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // All writes via Cloud Functions (addMaintenanceUpdate)
+    }
+
+    // ============================================================
+    // maintenance_attachments
+    // ============================================================
+
+    match /maintenance_attachments/{attachmentId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // Any active member may add an attachment after uploading to Storage
+      allow create: if isAuthenticated()
+        && isActiveIn(request.resource.data.boatId)
+        && request.resource.data.uploadedByUserId == uid();
+      // Delete: maintenanceManager or admin
+      allow delete: if isAuthenticated() && isMaintenanceMgrOrAdmin(resource.data.boatId);
+    }
+
+    // ============================================================
+    // announcements
+    // ============================================================
+
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      allow create: if isAuthenticated()
+        && isAdminOf(request.resource.data.boatId)
+        && request.resource.data.createdByUserId == uid();
+      allow update: if isAuthenticated() && isAdminOf(resource.data.boatId);
+      allow delete: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // checklists
+    // ============================================================
+
+    match /checklists/{checklistId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      allow create: if isAuthenticated()
+        && isMaintenanceMgrOrAdmin(request.resource.data.boatId);
+      allow update: if isAuthenticated() && isMaintenanceMgrOrAdmin(resource.data.boatId);
+      // Delete: admin only
+      allow delete: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // checklist_runs
+    // ============================================================
+
+    match /checklist_runs/{runId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      // Any active member may submit a checklist run
+      allow create: if isAuthenticated()
+        && isActiveIn(request.resource.data.boatId)
+        && request.resource.data.completedByUserId == uid();
+      // Author or admin may update/delete
+      allow update: if isAuthenticated() && (
+        (isActiveIn(resource.data.boatId) && resource.data.completedByUserId == uid()) ||
+        isAdminOf(resource.data.boatId)
+      );
+      allow delete: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // contacts
+    // ============================================================
+
+    match /contacts/{contactId} {
+      allow read: if isAuthenticated() && isActiveIn(resource.data.boatId);
+      allow create: if isAuthenticated()
+        && isMaintenanceMgrOrAdmin(request.resource.data.boatId);
+      allow update: if isAuthenticated() && isMaintenanceMgrOrAdmin(resource.data.boatId);
+      allow delete: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // feedback_reports
+    // ============================================================
+
+    match /feedback_reports/{reportId} {
+      // Partner sees own; admin sees all
+      allow read: if isAuthenticated() && (
+        (isActiveIn(resource.data.boatId) && resource.data.userId == uid()) ||
+        isAdminOf(resource.data.boatId)
+      );
+      // Any active member may create a report
+      allow create: if isAuthenticated()
+        && isActiveIn(request.resource.data.boatId)
+        && request.resource.data.userId == uid();
+      // Admin may update status
+      allow update: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // feedback_attachments
+    // ============================================================
+
+    match /feedback_attachments/{attachmentId} {
+      // Author or admin may read
+      allow read: if isAuthenticated() && (
+        (isActiveIn(resource.data.boatId) && resource.data.uploadedByUserId == uid()) ||
+        isAdminOf(resource.data.boatId)
+      );
+      // Any active member may attach a file to their own feedback
+      allow create: if isAuthenticated()
+        && isActiveIn(request.resource.data.boatId)
+        && request.resource.data.uploadedByUserId == uid();
+    }
+
+    // ============================================================
+    // audit_logs — admin read only; writes via Cloud Functions (admin SDK)
+    // ============================================================
+
+    match /audit_logs/{logId} {
+      allow read: if isAuthenticated() && isAdminOf(resource.data.boatId);
+      // No client writes ever
+    }
+
+    // ============================================================
+    // system_settings — admin only
+    // ============================================================
+
+    match /system_settings/{settingId} {
+      allow read: if isAuthenticated() && isAdminOf(resource.data.boatId);
+      allow write: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // backups — admin read; writes via Cloud Functions (admin SDK)
+    // ============================================================
+
+    match /backups/{backupId} {
+      allow read: if isAuthenticated() && isAdminOf(resource.data.boatId);
+      // No client writes ever
+    }
+
+  }
+}

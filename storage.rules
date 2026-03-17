@@ -1,0 +1,114 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function getMembership(boatId) {
+      return request.auth.token.get('memberships', {})[boatId];
+    }
+
+    function isActiveIn(boatId) {
+      let m = getMembership(boatId);
+      return isAuthenticated() && m != null && m.status == 'active';
+    }
+
+    function getRoleIn(boatId) {
+      let m = getMembership(boatId);
+      return m != null ? m.role : null;
+    }
+
+    function isAdminOf(boatId) {
+      return isActiveIn(boatId) && getRoleIn(boatId) == 'admin';
+    }
+
+    function isMaintenanceMgrOrAdmin(boatId) {
+      return isActiveIn(boatId) && getRoleIn(boatId) in ['maintenanceManager', 'admin'];
+    }
+
+    // Max file size: 10 MB
+    function isWithinSizeLimit() {
+      return request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // Allowed content types for user uploads
+    function isAllowedContentType() {
+      return request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('video/.*');
+    }
+
+    // ============================================================
+    // Maintenance attachments
+    // Path: boats/{boatId}/maintenance/{ticketId}/{fileName}
+    // Read:  any active member
+    // Write: any active member (10 MB, allowed types)
+    // Delete: maintenanceManager or admin
+    // ============================================================
+
+    match /boats/{boatId}/maintenance/{ticketId}/{fileName} {
+      allow read:   if isAuthenticated() && isActiveIn(boatId);
+      allow create: if isAuthenticated()
+                    && isActiveIn(boatId)
+                    && isWithinSizeLimit()
+                    && isAllowedContentType();
+      allow update: if false; // immutable after upload
+      allow delete: if isAuthenticated() && isMaintenanceMgrOrAdmin(boatId);
+    }
+
+    // ============================================================
+    // Feedback attachments
+    // Path: boats/{boatId}/feedback/{reportId}/{fileName}
+    // Read:  author (by uid in metadata) or admin
+    // Write: any active member (10 MB, allowed types)
+    // ============================================================
+
+    match /boats/{boatId}/feedback/{reportId}/{fileName} {
+      // Read: uploader or admin
+      // We rely on the metadata.customMetadata.uploadedByUserId field set at upload time.
+      allow read:   if isAuthenticated() && (
+                      (isActiveIn(boatId) && resource.metadata['uploadedByUserId'] == uid()) ||
+                      isAdminOf(boatId)
+                    );
+      allow create: if isAuthenticated()
+                    && isActiveIn(boatId)
+                    && isWithinSizeLimit()
+                    && isAllowedContentType()
+                    && request.resource.metadata['uploadedByUserId'] == uid();
+      allow update: if false; // immutable after upload
+      allow delete: if isAuthenticated() && isAdminOf(boatId);
+    }
+
+    // ============================================================
+    // Backups
+    // Path: boats/{boatId}/backups/{fileName}
+    // Read:  admin only
+    // Write: Cloud Functions only (admin SDK bypasses rules)
+    // ============================================================
+
+    match /boats/{boatId}/backups/{fileName} {
+      allow read:   if isAuthenticated() && isAdminOf(boatId);
+      allow write:  if false; // admin SDK only
+    }
+
+    // ============================================================
+    // Deny everything else
+    // ============================================================
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+  }
+}
