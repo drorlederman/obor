@@ -94,7 +94,7 @@ export default function AppLayout() {
   useFCM(user?.uid)
 
   const activeMembership = memberships.find((m) => m.boatId === activeBoatId)
-  const boatName = activeMembership?.boatName ?? 'OBOR'
+  const boatName = activeMembership?.boatName ?? 'הסירה שלי'
   const roleLabel = activeRole ? (ROLE_LABELS[activeRole] ?? activeRole) : ''
 
   const initials = (user?.displayName ?? user?.email ?? '?')

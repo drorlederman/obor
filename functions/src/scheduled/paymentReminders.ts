@@ -45,6 +45,10 @@ export const paymentReminders = onSchedule('every monday 09:00', async () => {
       const totalOwed = invoices.reduce((sum, inv) => sum + inv.amount, 0)
       const boatId = invoices[0].boatId
 
+      const notificationsSettingsSnap = await db.doc(`system_settings/${boatId}_notifications`).get()
+      const invoicesEnabled = (notificationsSettingsSnap.data()?.invoices as boolean | undefined) ?? true
+      if (!invoicesEnabled) return
+
       // Get boat name
       const boatSnap = await db.doc(`boats/${boatId}`).get()
       const boatName = (boatSnap.data()?.name as string) ?? 'OBOR'

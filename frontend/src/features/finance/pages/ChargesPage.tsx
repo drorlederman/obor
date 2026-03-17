@@ -6,6 +6,8 @@ import { useBoat } from '@/context/BoatContext'
 import { publishChargeFn } from '@/services/functions'
 import ChargeCard from '@/features/finance/components/ChargeCard'
 import CreateChargeModal from '@/features/finance/components/CreateChargeModal'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 export default function ChargesPage() {
@@ -45,17 +47,17 @@ export default function ChargesPage() {
       )}
 
       {error && (
-        <div className="card text-center text-red-500">
-          שגיאה בטעינת החיובים
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת החיובים" />
         </div>
       )}
 
       {!isLoading && !error && charges?.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין חיובים עדיין</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-            לחץ על "חיוב חדש" להוסיף את הראשון
-          </p>
+        <div className="card">
+          <EmptyState
+            title="אין חיובים עדיין"
+            description='לחץ על "חיוב חדש" כדי להוסיף את החיוב הראשון'
+          />
         </div>
       )}
 

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useAuditLogs } from '@/hooks/useAuditLogs'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ErrorState from '@/components/ui/ErrorState'
+import EmptyState from '@/components/ui/EmptyState'
 
 const ACTION_LABELS: Record<string, string> = {
   'boat.created': 'סירה נוצרה',
@@ -90,11 +92,18 @@ export default function AuditPage() {
       )}
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת יומן הביקורת</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת יומן הביקורת" />
+        </div>
+      )}
 
       {!isLoading && !error && (!filtered || filtered.length === 0) && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין רשומות ביומן</p>
+        <div className="card">
+          <EmptyState
+            title="אין רשומות ביומן"
+            description="פעולות מערכת יופיעו כאן לאחר ביצוען"
+          />
         </div>
       )}
 

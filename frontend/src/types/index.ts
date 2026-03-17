@@ -6,6 +6,6 @@ export type { TicketCategory, TicketPriority, TicketStatus, MaintenanceTicket, M
 export type { AnnouncementPriority, Announcement } from './announcement'
 export type { ChecklistType, ChecklistItem, Checklist, ChecklistResponse, ChecklistRun } from './checklist'
 export type { ContactCategory, Contact } from './contact'
-export type { FeedbackType, FeedbackStatus, FeedbackReport } from './feedback'
+export type { FeedbackType, FeedbackStatus, FeedbackReport, FeedbackAttachment } from './feedback'
 export type { AuditLog } from './audit'
 export type { BoatStatus, MemberStatus, InvitationStatus, Boat, BoatMember, Invitation } from './boat'

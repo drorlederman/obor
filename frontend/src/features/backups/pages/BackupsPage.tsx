@@ -4,6 +4,8 @@ import toast from 'react-hot-toast'
 import { useBackups } from '@/hooks/useBackups'
 import { useBoat } from '@/context/BoatContext'
 import { createSystemBackupFn, restoreBackupFn } from '@/services/functions'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 function formatDateTime(date: Date) {
@@ -71,13 +73,18 @@ export default function BackupsPage() {
       </div>
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת הגיבויים</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת הגיבויים" />
+        </div>
+      )}
 
       {!isLoading && !error && (!backups || backups.length === 0) && (
-        <div className="card text-center py-10">
-          <p className="text-3xl mb-3">💾</p>
-          <p className="font-medium text-gray-700 dark:text-gray-300">אין גיבויים</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">צור את הגיבוי הראשון</p>
+        <div className="card">
+          <EmptyState
+            title="אין גיבויים"
+            description="צור את הגיבוי הראשון כדי לאפשר שחזור בעת הצורך"
+          />
         </div>
       )}
 

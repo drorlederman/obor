@@ -9,6 +9,8 @@ import { db } from '@/lib/firebase'
 import { useContacts } from '@/hooks/useContacts'
 import { useBoat } from '@/context/BoatContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ErrorState from '@/components/ui/ErrorState'
+import EmptyState from '@/components/ui/EmptyState'
 import type { ContactCategory } from '@/types'
 
 const CATEGORY_LABELS: Record<ContactCategory, string> = {
@@ -117,7 +119,7 @@ export default function ContactsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">אימייל (אופציונלי)</label>
-              <input {...register('email')} type="email" className="input" placeholder="email@example.com" />
+              <input {...register('email')} type="email" className="input" placeholder="דוגמה: שם@דומיין.קום" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">הערות</label>
@@ -136,11 +138,18 @@ export default function ContactsPage() {
       )}
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת אנשי הקשר</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת אנשי הקשר" />
+        </div>
+      )}
 
       {!isLoading && !error && Object.keys(grouped).length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין אנשי קשר</p>
+        <div className="card">
+          <EmptyState
+            title="אין אנשי קשר"
+            description="אנשי קשר חשובים יוצגו כאן לאחר הוספה"
+          />
         </div>
       )}
 

@@ -14,3 +14,15 @@ export interface FeedbackReport {
   createdAt: Date
   updatedAt: Date
 }
+
+export interface FeedbackAttachment {
+  id: string
+  boatId: string
+  reportId: string
+  storagePath: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  uploadedByUserId: string
+  createdAt: Date
+}

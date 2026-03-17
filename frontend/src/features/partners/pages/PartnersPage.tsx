@@ -6,6 +6,8 @@ import { useAllPartners } from '@/hooks/useAllPartners'
 import { useInvitations } from '@/hooks/useInvitations'
 import { useBoat } from '@/context/BoatContext'
 import { invitePartnerFn, revokeInvitationFn } from '@/services/functions'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { FinancialStatus, MemberRole } from '@/types'
 
@@ -141,11 +143,18 @@ export default function PartnersPage() {
       </div>
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת השותפים</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת השותפים" />
+        </div>
+      )}
 
       {!isLoading && !error && (!partners || partners.length === 0) && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין שותפים פעילים</p>
+        <div className="card">
+          <EmptyState
+            title="אין שותפים פעילים"
+            description="ניתן להזמין שותף חדש דרך הטופס למעלה"
+          />
         </div>
       )}
 

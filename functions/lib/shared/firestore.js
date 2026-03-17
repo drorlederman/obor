@@ -38,14 +38,12 @@ async function runTransaction(callback) {
  * Returns a serverTimestamp field value.
  */
 function serverTimestamp() {
-    const { FieldValue } = require('firebase-admin/firestore');
-    return FieldValue.serverTimestamp();
+    return firestore_1.FieldValue.serverTimestamp();
 }
 /**
  * Returns an increment field value.
  */
 function increment(n) {
-    const { FieldValue } = require('firebase-admin/firestore');
-    return FieldValue.increment(n);
+    return firestore_1.FieldValue.increment(n);
 }
 //# sourceMappingURL=firestore.js.map

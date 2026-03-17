@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useMaintenanceTickets } from '@/hooks/useMaintenanceTickets'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { TicketStatus } from '@/types'
 
@@ -29,6 +31,7 @@ function formatDate(date: Date) {
 }
 
 export default function MaintenancePage() {
+  const navigate = useNavigate()
   const { data: tickets, isLoading, error } = useMaintenanceTickets()
   const [selectedStatus, setSelectedStatus] = useState<TicketStatus | 'all'>('all')
 
@@ -80,15 +83,19 @@ export default function MaintenancePage() {
       )}
 
       {error && (
-        <div className="card text-center text-red-500">שגיאה בטעינת קריאות התחזוקה</div>
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת קריאות התחזוקה" />
+        </div>
       )}
 
       {!isLoading && !error && filtered.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין קריאות תחזוקה</p>
-          <Link to="/maintenance/new" className="mt-3 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline">
-            פתח קריאה ראשונה
-          </Link>
+        <div className="card">
+          <EmptyState
+            title="אין קריאות תחזוקה"
+            description="ניתן לפתוח קריאה חדשה כדי להתחיל מעקב"
+            actionLabel="פתח קריאה חדשה"
+            onAction={() => navigate('/maintenance/new')}
+          />
         </div>
       )}
 

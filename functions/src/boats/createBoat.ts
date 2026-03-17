@@ -106,6 +106,10 @@ export const createBoat = onCall(async (request) => {
     boatId,
     type: 'notifications',
     paymentReminderDays: 7,
+    announcements: true,
+    maintenance: true,
+    invoices: true,
+    bookingReminders: true,
     updatedAt: now,
   })
   batch.set(db.doc(`system_settings/${boatId}_weather`), {

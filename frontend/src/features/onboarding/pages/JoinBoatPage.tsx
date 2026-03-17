@@ -57,7 +57,7 @@ export default function JoinBoatPage() {
       <div className="w-full max-w-sm text-center">
         <img
           src="/obor_logo.png"
-          alt="OBOR"
+          alt="לוגו האפליקציה"
           className="w-24 h-24 object-contain rounded-2xl mx-auto mb-6 bg-white p-1"
         />
 

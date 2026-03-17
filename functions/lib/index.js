@@ -47,4 +47,5 @@ __exportStar(require("./scheduled/markOverdueInvoices"), exports);
 __exportStar(require("./scheduled/expireInvitations"), exports);
 __exportStar(require("./scheduled/paymentReminders"), exports);
 __exportStar(require("./scheduled/maintenanceAlerts"), exports);
+__exportStar(require("./scheduled/bookingReminders"), exports);
 //# sourceMappingURL=index.js.map

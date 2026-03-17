@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, doc, increment, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '@/lib/firebase'
 import { z } from 'zod'
@@ -38,7 +38,6 @@ export default function FeedbackNewPage() {
   async function onSubmit(data: FormData) {
     if (!activeBoatId || !user) return
     try {
-      const hasAttachment = !!attachmentFile
       const reportRef = await addDoc(collection(db, 'feedback_reports'), {
         boatId: activeBoatId,
         userId: user.uid,
@@ -47,13 +46,13 @@ export default function FeedbackNewPage() {
         title: data.title.trim(),
         message: data.message.trim(),
         status: 'new',
-        attachmentCount: hasAttachment ? 1 : 0,
+        attachmentCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
 
       if (attachmentFile) {
-        const safeFileName = `${Date.now()}_${attachmentFile.name.replace(/[^\w.\-]/g, '_')}`
+        const safeFileName = `${Date.now()}_${attachmentFile.name.replace(/[^\w.-]/g, '_')}`
         const storagePath = `boats/${activeBoatId}/feedback/${reportRef.id}/${safeFileName}`
         const fileRef = ref(storage, storagePath)
 
@@ -71,6 +70,11 @@ export default function FeedbackNewPage() {
           sizeBytes: attachmentFile.size,
           uploadedByUserId: user.uid,
           createdAt: serverTimestamp(),
+        })
+
+        await updateDoc(doc(db, 'feedback_reports', reportRef.id), {
+          attachmentCount: increment(1),
+          updatedAt: serverTimestamp(),
         })
       }
 

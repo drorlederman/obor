@@ -1,5 +1,6 @@
 import {
   getFirestore,
+  FieldValue,
   DocumentReference,
   DocumentSnapshot,
   Transaction,
@@ -49,7 +50,6 @@ export async function runTransaction<T>(
  * Returns a serverTimestamp field value.
  */
 export function serverTimestamp() {
-  const { FieldValue } = require('firebase-admin/firestore')
   return FieldValue.serverTimestamp()
 }
 
@@ -57,6 +57,5 @@ export function serverTimestamp() {
  * Returns an increment field value.
  */
 export function increment(n: number) {
-  const { FieldValue } = require('firebase-admin/firestore')
   return FieldValue.increment(n)
 }

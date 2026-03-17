@@ -1,5 +1,6 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { getFirestore } from 'firebase-admin/firestore'
+import { sendPushToUsers } from '../shared/notifications'
 
 export const maintenanceAlerts = onSchedule('every 24 hours', async () => {
   const db = getFirestore()
@@ -36,6 +37,33 @@ export const maintenanceAlerts = onSchedule('every 24 hours', async () => {
     `maintenanceAlerts: ${totalAlerts} high/critical open tickets across ${boatCount} boats`
   )
 
-  // TODO: When notification service is integrated, push alerts to boat admins/maintenance managers
-  // For each boat in boatTickets, notify relevant role holders
+  await Promise.allSettled(
+    Object.entries(boatTickets).map(async ([boatId, tickets]) => {
+      const notificationsSettingsSnap = await db.doc(`system_settings/${boatId}_notifications`).get()
+      const maintenanceEnabled = (notificationsSettingsSnap.data()?.maintenance as boolean | undefined) ?? true
+      if (!maintenanceEnabled) return
+
+      const membersSnap = await db
+        .collection('boat_members')
+        .where('boatId', '==', boatId)
+        .where('status', '==', 'active')
+        .where('role', 'in', ['maintenanceManager', 'admin'])
+        .get()
+
+      const userIds = [...new Set(membersSnap.docs.map((doc) => doc.data().userId as string).filter(Boolean))]
+      if (userIds.length === 0) return
+
+      const criticalCount = tickets.filter((t) => t.priority === 'critical').length
+      const title = `התראת תחזוקה — ${tickets.length} קריאות פתוחות`
+      const body = criticalCount > 0
+        ? `${criticalCount} קריאות דחופות דורשות טיפול`
+        : 'קיימות קריאות בעדיפות גבוהה שממתינות לטיפול'
+
+      await sendPushToUsers(userIds, {
+        title,
+        body,
+        data: { type: 'maintenance_alert', boatId, openCount: String(tickets.length) },
+      })
+    }),
+  )
 })

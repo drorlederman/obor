@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { deleteDoc, doc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { deleteObject, getDownloadURL, ref } from 'firebase/storage'
 import toast from 'react-hot-toast'
-import { db } from '@/lib/firebase'
+import { db, storage } from '@/lib/firebase'
 import { useFeedbackReports } from '@/hooks/useFeedbackReports'
+import { useFeedbackAttachments } from '@/hooks/useFeedbackAttachments'
 import { useBoat } from '@/context/BoatContext'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { FeedbackType, FeedbackStatus } from '@/types'
 
@@ -30,7 +34,16 @@ export default function FeedbackPage() {
   const queryClient = useQueryClient()
   const { isAdmin } = useBoat()
   const { data: reports, isLoading, error } = useFeedbackReports()
+  const { data: attachments } = useFeedbackAttachments()
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
+
+  const attachmentsByReport = (attachments ?? []).reduce<Record<string, typeof attachments>>((acc, item) => {
+    const reportId = item.reportId
+    if (!acc[reportId]) acc[reportId] = []
+    acc[reportId].push(item)
+    return acc
+  }, {})
 
   async function handleStatusChange(reportId: string, status: FeedbackStatus) {
     setUpdatingId(reportId)
@@ -45,6 +58,46 @@ export default function FeedbackPage() {
       toast.error('שגיאה בעדכון סטטוס הדיווח')
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  async function handleOpenAttachment(storagePath: string) {
+    try {
+      const url = await getDownloadURL(ref(storage, storagePath))
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      toast.error('שגיאה בפתיחת הקובץ')
+    }
+  }
+
+  async function handleDeleteAttachment(attachmentId: string, reportId: string, storagePath: string) {
+    if (!isAdmin) return
+    if (!window.confirm('למחוק את הקובץ המצורף?')) return
+
+    setDeletingAttachmentId(attachmentId)
+    try {
+      await deleteObject(ref(storage, storagePath))
+      await deleteDoc(doc(db, 'feedback_attachments', attachmentId))
+
+      await runTransaction(db, async (tx) => {
+        const reportRef = doc(db, 'feedback_reports', reportId)
+        const reportSnap = await tx.get(reportRef)
+        if (!reportSnap.exists()) return
+        const data = reportSnap.data()
+        const currentCount = (data.attachmentCount as number) ?? 0
+        tx.update(reportRef, {
+          attachmentCount: Math.max(0, currentCount - 1),
+          updatedAt: serverTimestamp(),
+        })
+      })
+
+      toast.success('הקובץ נמחק')
+      queryClient.invalidateQueries({ queryKey: ['feedback_attachments'] })
+      queryClient.invalidateQueries({ queryKey: ['feedback_reports'] })
+    } catch {
+      toast.error('שגיאה במחיקת הקובץ')
+    } finally {
+      setDeletingAttachmentId(null)
     }
   }
 
@@ -64,15 +117,18 @@ export default function FeedbackPage() {
       )}
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת הדיווחים</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת הדיווחים" />
+        </div>
+      )}
 
       {!isLoading && !error && (!reports || reports.length === 0) && (
-        <div className="card text-center py-10">
-          <p className="text-3xl mb-3">💬</p>
-          <p className="font-medium text-gray-700 dark:text-gray-300">אין דיווחים עדיין</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            נתקלת בתקלה או יש לך רעיון? שתף אותנו
-          </p>
+        <div className="card">
+          <EmptyState
+            title="אין דיווחים עדיין"
+            description="נתקלת בתקלה או יש לך רעיון? שתף אותנו"
+          />
         </div>
       )}
 
@@ -81,6 +137,7 @@ export default function FeedbackPage() {
           {reports.map((r) => {
             const typeCfg = TYPE_CONFIG[r.type]
             const statusCfg = STATUS_CONFIG[r.status]
+            const reportAttachments = attachmentsByReport[r.id] ?? []
             return (
               <div key={r.id} className="card space-y-2">
                 <div className="flex items-start justify-between gap-2">
@@ -95,6 +152,32 @@ export default function FeedbackPage() {
                   </div>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{r.message}</p>
+                {reportAttachments.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">קבצים מצורפים ({reportAttachments.length})</p>
+                    <div className="space-y-1">
+                      {reportAttachments.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => void handleOpenAttachment(a.storagePath)}
+                            className="block text-xs text-blue-600 dark:text-blue-400 hover:underline truncate"
+                          >
+                            {a.fileName}
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => void handleDeleteAttachment(a.id, r.id, a.storagePath)}
+                              disabled={deletingAttachmentId === a.id}
+                              className="text-[11px] px-2 py-1 rounded border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60"
+                            >
+                              {deletingAttachmentId === a.id ? 'מוחק...' : 'מחק'}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(r.createdAt)}</p>
                   {isAdmin && (

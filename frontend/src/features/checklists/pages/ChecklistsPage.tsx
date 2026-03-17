@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useChecklists } from '@/hooks/useChecklists'
+import EmptyState from '@/components/ui/EmptyState'
+import ErrorState from '@/components/ui/ErrorState'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { ChecklistType, Checklist } from '@/types'
 
@@ -24,13 +26,18 @@ export default function ChecklistsPage() {
       <h1 className="text-xl font-bold text-gray-900 dark:text-white pt-2">צ׳קליסטים</h1>
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת הצ׳קליסטים</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת הצ׳קליסטים" />
+        </div>
+      )}
 
       {!isLoading && !error && checklists?.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-3xl mb-3">📋</p>
-          <p className="font-medium text-gray-700 dark:text-gray-300">אין צ׳קליסטים פעילים</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">המנהל יוסיף צ׳קליסטים לסירה</p>
+        <div className="card">
+          <EmptyState
+            title="אין צ׳קליסטים פעילים"
+            description="המנהל יוסיף צ׳קליסטים לסירה"
+          />
         </div>
       )}
 

@@ -26,7 +26,7 @@ export default function WelcomePage() {
         <div className="text-center mb-10">
           <img
             src="/obor_logo.png"
-            alt="OBOR"
+            alt="לוגו האפליקציה"
             className="w-32 h-32 object-contain rounded-2xl mx-auto mb-3 bg-white p-1"
           />
           <p className="text-white/60 text-sm">שלום, {user?.displayName ?? user?.email}</p>

@@ -9,6 +9,7 @@ const firestore_2 = require("../shared/firestore");
 const dates_1 = require("../shared/dates");
 const booking_utils_1 = require("../shared/booking-utils");
 const writeAuditLog_1 = require("../audit/writeAuditLog");
+const notifications_1 = require("../shared/notifications");
 exports.createBooking = (0, https_1.onCall)(async (request) => {
     const { boatId, ownerPartnerId, type, title, notes = null, startTime: startStr, endTime: endStr } = request.data;
     if (!boatId)
@@ -128,6 +129,12 @@ exports.createBooking = (0, https_1.onCall)(async (request) => {
         entityId: bookingId,
         details: { type, title: title.trim(), startTime: startStr, endTime: endStr, creditsUsed: creditCost },
     });
+    // Notify all boat members (non-blocking)
+    (0, notifications_1.sendPushToBoatMembers)(boatId, {
+        title: 'הזמנה חדשה',
+        body: `${title.trim()} — ${new Date(startStr).toLocaleDateString('he-IL')}`,
+        data: { type: 'booking_created', boatId, bookingId },
+    }, uid).catch((err) => console.error('sendPushToBoatMembers failed:', err));
     return { success: true, bookingId };
 });
 //# sourceMappingURL=createBooking.js.map

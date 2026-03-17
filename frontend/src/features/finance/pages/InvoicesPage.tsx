@@ -4,6 +4,8 @@ import { useBoat } from '@/context/BoatContext'
 import InvoiceCard from '@/features/finance/components/InvoiceCard'
 import RegisterPaymentModal from '@/features/finance/components/RegisterPaymentModal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ErrorState from '@/components/ui/ErrorState'
+import EmptyState from '@/components/ui/EmptyState'
 import type { PartnerInvoice } from '@/types'
 
 const STATUS_TABS = [
@@ -58,14 +60,17 @@ export default function InvoicesPage() {
       )}
 
       {error && (
-        <div className="card text-center text-red-500">
-          שגיאה בטעינת החשבוניות
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת החשבוניות" />
         </div>
       )}
 
       {!isLoading && !error && filtered.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין חשבוניות להצגה</p>
+        <div className="card">
+          <EmptyState
+            title="אין חשבוניות להצגה"
+            description="חשבוניות חדשות יופיעו כאן לאחר יצירה"
+          />
         </div>
       )}
 

@@ -88,7 +88,7 @@ export default function MaintenanceDetailPage() {
 
     setUploadingAttachment(true)
     try {
-      const safeFileName = `${Date.now()}_${file.name.replace(/[^\w.\-]/g, '_')}`
+      const safeFileName = `${Date.now()}_${file.name.replace(/[^\w.-]/g, '_')}`
       const storagePath = `boats/${activeBoatId}/maintenance/${id}/${safeFileName}`
       const fileRef = ref(storage, storagePath)
 

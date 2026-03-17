@@ -83,7 +83,7 @@ export default function CreateBoatPage() {
               <input
                 type="text"
                 className="input"
-                placeholder="לדוגמה: RUACH-YAM"
+                placeholder="לדוגמה: רוח-ים-אחת"
                 {...register('code', {
                   onChange: (e) =>
                     setValue('code', e.target.value.toUpperCase(), { shouldValidate: true }),

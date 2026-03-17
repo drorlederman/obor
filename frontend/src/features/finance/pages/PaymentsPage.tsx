@@ -1,6 +1,8 @@
 import { usePayments } from '@/hooks/usePayments'
 import PaymentItem from '@/features/finance/components/PaymentItem'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ErrorState from '@/components/ui/ErrorState'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function PaymentsPage() {
   const { data: payments, isLoading, error } = usePayments()
@@ -16,14 +18,17 @@ export default function PaymentsPage() {
       )}
 
       {error && (
-        <div className="card text-center text-red-500">
-          שגיאה בטעינת התשלומים
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת התשלומים" />
         </div>
       )}
 
       {!isLoading && !error && payments?.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין תשלומים עדיין</p>
+        <div className="card">
+          <EmptyState
+            title="אין תשלומים עדיין"
+            description="תשלומים שיוזנו יופיעו כאן"
+          />
         </div>
       )}
 

@@ -328,6 +328,8 @@ service cloud.firestore {
       allow create: if isAuthenticated()
         && isActiveIn(request.resource.data.boatId)
         && request.resource.data.uploadedByUserId == uid();
+      // Delete: admin only
+      allow delete: if isAuthenticated() && isAdminOf(resource.data.boatId);
     }
 
     // ============================================================

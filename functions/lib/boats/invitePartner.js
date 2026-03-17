@@ -10,6 +10,7 @@ const firestore_2 = require("../shared/firestore");
 const dates_1 = require("../shared/dates");
 const writeAuditLog_1 = require("../audit/writeAuditLog");
 const crypto_1 = require("crypto");
+const email_1 = require("../shared/email");
 const VALID_ROLES = ['partner', 'scheduler', 'treasurer', 'maintenanceManager', 'admin'];
 exports.invitePartner = (0, https_1.onCall)(async (request) => {
     const { boatId, email, role } = request.data;
@@ -82,6 +83,8 @@ exports.invitePartner = (0, https_1.onCall)(async (request) => {
         entityId: invitationRef.id,
         details: { email: normalizedEmail, role },
     });
+    // Send invitation email (non-blocking — don't fail if email fails)
+    (0, email_1.sendInvitationEmail)(normalizedEmail, boatName, token).catch((err) => console.error('sendInvitationEmail failed:', err));
     return { success: true, invitationId: invitationRef.id, token };
 });
 //# sourceMappingURL=invitePartner.js.map

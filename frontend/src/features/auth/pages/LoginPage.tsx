@@ -73,7 +73,7 @@ function GoogleButton({ onSuccess }: { onSuccess: () => void }) {
           <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
         </svg>
       )}
-      המשך עם Google
+      המשך עם חשבון גוגל
     </button>
   )
 }
@@ -102,7 +102,7 @@ function SignInForm({ onSuccess }: { onSuccess: () => void }) {
           כתובת אימייל
         </label>
         <input type="email" autoComplete="email" inputMode="email" className="input"
-          placeholder="you@example.com" {...register('email')} />
+          placeholder="דוגמה: שם@דומיין.קום" {...register('email')} />
         {errors.email && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>}
       </div>
       <div>
@@ -134,7 +134,7 @@ function SignUpForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       await signUp(data.email, data.password, data.fullName)
       onSuccess()
-      toast.success('ברוכים הבאים ל-OBOR!')
+      toast.success('ברוכים הבאים לאפליקציה!')
     } catch (err) {
       toast.error(getAuthErrorMessage(err))
     }
@@ -150,7 +150,7 @@ function SignUpForm({ onSuccess }: { onSuccess: () => void }) {
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">כתובת אימייל</label>
         <input type="email" autoComplete="email" inputMode="email" className="input"
-          placeholder="you@example.com" {...register('email')} />
+          placeholder="דוגמה: שם@דומיין.קום" {...register('email')} />
         {errors.email && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>}
       </div>
       <div>
@@ -191,7 +191,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <img
             src="/obor_logo.png"
-            alt="OBOR"
+            alt="לוגו האפליקציה"
             className="w-32 h-32 object-contain rounded-2xl mx-auto mb-2 bg-white p-1"
           />
           <p className="text-white/60 text-sm">ניהול סירת מפרש משותפת</p>

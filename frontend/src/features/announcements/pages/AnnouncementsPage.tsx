@@ -10,6 +10,8 @@ import { useAnnouncements } from '@/hooks/useAnnouncements'
 import { useBoat } from '@/context/BoatContext'
 import { useAuth } from '@/context/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ErrorState from '@/components/ui/ErrorState'
+import EmptyState from '@/components/ui/EmptyState'
 import type { AnnouncementPriority } from '@/types'
 
 const PRIORITY_CONFIG: Record<AnnouncementPriority, { label: string; classes: string; border: string }> = {
@@ -115,11 +117,18 @@ export default function AnnouncementsPage() {
       )}
 
       {isLoading && <div className="flex justify-center py-12"><LoadingSpinner /></div>}
-      {error && <div className="card text-center text-red-500">שגיאה בטעינת ההודעות</div>}
+      {error && (
+        <div className="card">
+          <ErrorState message="שגיאה בטעינת ההודעות" />
+        </div>
+      )}
 
       {!isLoading && !error && (!announcements || announcements.length === 0) && (
-        <div className="card text-center py-10">
-          <p className="text-gray-500 dark:text-gray-400">אין הודעות פעילות</p>
+        <div className="card">
+          <EmptyState
+            title="אין הודעות פעילות"
+            description="הודעות חדשות מהמנהל יופיעו כאן"
+          />
         </div>
       )}
 
