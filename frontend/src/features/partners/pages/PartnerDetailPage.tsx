@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { doc, getDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import toast from 'react-hot-toast'
 import {
-  freezePartnerFn, unfreezePartnerFn, changeMemberRoleFn,
+  freezePartnerFn, unfreezePartnerFn, changeMemberRoleFn, removeMemberFn,
 } from '@/services/functions'
 import { useBoat } from '@/context/BoatContext'
+import { useAuth } from '@/context/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { Partner, MemberRole, FinancialStatus } from '@/types'
 
@@ -29,12 +30,15 @@ function formatDate(date: Date) {
 }
 
 export default function PartnerDetailPage() {
+  const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
   const { activeBoatId } = useBoat()
+  const { user } = useAuth()
 
   const [freezing, setFreezing] = useState(false)
   const [changingRole, setChangingRole] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [selectedRole, setSelectedRole] = useState<MemberRole | ''>('')
 
   const { data: partner, isLoading } = useQuery<Partner | null>({
@@ -93,6 +97,27 @@ export default function PartnerDetailPage() {
       toast.error('שגיאה בשינוי תפקיד')
     } finally {
       setChangingRole(false)
+    }
+  }
+
+  async function handleRemoveMember() {
+    if (!partner || !partner.userId || !activeBoatId) return
+    if (partner.userId === user?.uid) {
+      toast.error('לא ניתן להסיר את עצמך מהסירה ממסך זה')
+      return
+    }
+    if (!window.confirm('להסיר את השותף מהסירה?')) return
+
+    setRemoving(true)
+    try {
+      await removeMemberFn({ boatId: activeBoatId, userId: partner.userId })
+      toast.success('השותף הוסר בהצלחה')
+      queryClient.invalidateQueries({ queryKey: ['partners-all', activeBoatId] })
+      navigate('/partners')
+    } catch {
+      toast.error('שגיאה בהסרת השותף')
+    } finally {
+      setRemoving(false)
     }
   }
 
@@ -202,6 +227,16 @@ export default function PartnerDetailPage() {
       >
         {freezing ? <LoadingSpinner size="sm" /> : (isFrozen ? 'שחרר הקפאה' : 'הקפא שותף')}
       </button>
+
+      {partner.userId && (
+        <button
+          onClick={handleRemoveMember}
+          disabled={removing}
+          className="w-full py-3 rounded-xl font-medium text-sm transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+        >
+          {removing ? <LoadingSpinner size="sm" /> : 'הסר שותף מהסירה'}
+        </button>
+      )}
     </div>
   )
 }

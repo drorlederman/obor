@@ -1,4 +1,9 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import toast from 'react-hot-toast'
+import { db } from '@/lib/firebase'
 import { useFeedbackReports } from '@/hooks/useFeedbackReports'
 import { useBoat } from '@/context/BoatContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -22,8 +27,26 @@ function formatDate(date: Date) {
 }
 
 export default function FeedbackPage() {
+  const queryClient = useQueryClient()
   const { isAdmin } = useBoat()
   const { data: reports, isLoading, error } = useFeedbackReports()
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  async function handleStatusChange(reportId: string, status: FeedbackStatus) {
+    setUpdatingId(reportId)
+    try {
+      await updateDoc(doc(db, 'feedback_reports', reportId), {
+        status,
+        updatedAt: serverTimestamp(),
+      })
+      toast.success('סטטוס הדיווח עודכן')
+      queryClient.invalidateQueries({ queryKey: ['feedback_reports'] })
+    } catch {
+      toast.error('שגיאה בעדכון סטטוס הדיווח')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
 
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto">
@@ -72,7 +95,22 @@ export default function FeedbackPage() {
                   </div>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{r.message}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(r.createdAt)}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(r.createdAt)}</p>
+                  {isAdmin && (
+                    <select
+                      value={r.status}
+                      onChange={(e) => void handleStatusChange(r.id, e.target.value as FeedbackStatus)}
+                      disabled={updatingId === r.id}
+                      className="text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-gray-700 dark:text-gray-300 disabled:opacity-60"
+                    >
+                      <option value="new">חדש</option>
+                      <option value="reviewing">בבדיקה</option>
+                      <option value="resolved">טופל</option>
+                      <option value="closed">סגור</option>
+                    </select>
+                  )}
+                </div>
               </div>
             )
           })}

@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase'
 import { useBoat } from '@/context/BoatContext'
 import { useFirestoreQuery } from './useFirestoreQuery'
 import { useFirestoreDoc } from './useFirestoreDoc'
-import type { MaintenanceTicket, MaintenanceUpdate } from '@/types'
+import type { MaintenanceTicket, MaintenanceUpdate, MaintenanceAttachment } from '@/types'
 
 function docToTicket(id: string, data: DocumentData): MaintenanceTicket {
   return {
@@ -34,6 +34,20 @@ function docToUpdate(id: string, data: DocumentData): MaintenanceUpdate {
     statusBefore: (data.statusBefore as MaintenanceUpdate['statusBefore']) ?? null,
     statusAfter: (data.statusAfter as MaintenanceUpdate['statusAfter']) ?? null,
     createdByUserId: data.createdByUserId as string,
+    createdAt: data.createdAt.toDate(),
+  }
+}
+
+function docToAttachment(id: string, data: DocumentData): MaintenanceAttachment {
+  return {
+    id,
+    boatId: data.boatId as string,
+    ticketId: data.ticketId as string,
+    storagePath: data.storagePath as string,
+    fileName: data.fileName as string,
+    contentType: data.contentType as string,
+    sizeBytes: (data.sizeBytes as number) ?? 0,
+    uploadedByUserId: data.uploadedByUserId as string,
     createdAt: data.createdAt.toDate(),
   }
 }
@@ -74,5 +88,22 @@ export function useMaintenanceUpdates(ticketId: string | undefined) {
           )
       : null,
     docToUpdate,
+  )
+}
+
+export function useMaintenanceAttachments(ticketId: string | undefined) {
+  const { activeBoatId } = useBoat()
+  return useFirestoreQuery(
+    ['maintenance_attachments', ticketId],
+    activeBoatId && ticketId
+      ? () =>
+          query(
+            collection(db, 'maintenance_attachments'),
+            where('boatId', '==', activeBoatId),
+            where('ticketId', '==', ticketId),
+            orderBy('createdAt', 'desc'),
+          )
+      : null,
+    docToAttachment,
   )
 }

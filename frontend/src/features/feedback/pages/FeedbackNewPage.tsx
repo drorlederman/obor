@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { ref, uploadBytes } from 'firebase/storage'
+import { db, storage } from '@/lib/firebase'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { useBoat } from '@/context/BoatContext'
@@ -26,6 +28,7 @@ export default function FeedbackNewPage() {
   const { activeBoatId } = useBoat()
   const { user } = useAuth()
   const { data: partner } = usePartner()
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -35,7 +38,8 @@ export default function FeedbackNewPage() {
   async function onSubmit(data: FormData) {
     if (!activeBoatId || !user) return
     try {
-      await addDoc(collection(db, 'feedback_reports'), {
+      const hasAttachment = !!attachmentFile
+      const reportRef = await addDoc(collection(db, 'feedback_reports'), {
         boatId: activeBoatId,
         userId: user.uid,
         partnerId: partner?.id ?? null,
@@ -43,10 +47,33 @@ export default function FeedbackNewPage() {
         title: data.title.trim(),
         message: data.message.trim(),
         status: 'new',
-        attachmentCount: 0,
+        attachmentCount: hasAttachment ? 1 : 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
+
+      if (attachmentFile) {
+        const safeFileName = `${Date.now()}_${attachmentFile.name.replace(/[^\w.\-]/g, '_')}`
+        const storagePath = `boats/${activeBoatId}/feedback/${reportRef.id}/${safeFileName}`
+        const fileRef = ref(storage, storagePath)
+
+        await uploadBytes(fileRef, attachmentFile, {
+          contentType: attachmentFile.type || 'application/octet-stream',
+          customMetadata: { uploadedByUserId: user.uid },
+        })
+
+        await addDoc(collection(db, 'feedback_attachments'), {
+          boatId: activeBoatId,
+          reportId: reportRef.id,
+          storagePath,
+          fileName: attachmentFile.name,
+          contentType: attachmentFile.type || 'application/octet-stream',
+          sizeBytes: attachmentFile.size,
+          uploadedByUserId: user.uid,
+          createdAt: serverTimestamp(),
+        })
+      }
+
       toast.success('הדיווח נשלח בהצלחה')
       queryClient.invalidateQueries({ queryKey: ['feedback_reports', activeBoatId] })
       navigate('/feedback')
@@ -99,6 +126,16 @@ export default function FeedbackNewPage() {
             placeholder="פרט את הבעיה, הצעת הפיצ׳ר, או כל מידע שיעזור לנו..."
           />
           {errors.message && <p className="mt-1 text-xs text-red-500">{errors.message.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">קובץ מצורף (אופציונלי)</label>
+          <input
+            type="file"
+            className="input"
+            onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
+          />
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">מותר: תמונה / PDF / וידאו עד 10MB</p>
         </div>
 
         <button type="submit" disabled={isSubmitting} className="btn-primary w-full">

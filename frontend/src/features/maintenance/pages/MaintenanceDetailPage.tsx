@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore'
+import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import toast from 'react-hot-toast'
-import { useMaintenanceTicket, useMaintenanceUpdates } from '@/hooks/useMaintenanceTickets'
+import { db, storage } from '@/lib/firebase'
+import { useAuth } from '@/context/AuthContext'
+import { useMaintenanceTicket, useMaintenanceUpdates, useMaintenanceAttachments } from '@/hooks/useMaintenanceTickets'
 import { useBoat } from '@/context/BoatContext'
 import { updateMaintenanceStatusFn, addMaintenanceUpdateFn } from '@/services/functions'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -34,15 +38,19 @@ function formatDateTime(date: Date) {
 export default function MaintenanceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
-  const { isMaintenanceManager, isAdmin } = useBoat()
+  const { user } = useAuth()
+  const { activeBoatId, isMaintenanceManager, isAdmin } = useBoat()
   const canManage = isMaintenanceManager || isAdmin
 
   const { data: ticket, isLoading } = useMaintenanceTicket(id)
   const { data: updates } = useMaintenanceUpdates(id)
+  const { data: attachments } = useMaintenanceAttachments(id)
 
   const [comment, setComment] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
 
   async function handleStatusChange(newStatus: TicketStatus) {
     if (!id) return
@@ -72,6 +80,65 @@ export default function MaintenanceDetailPage() {
       toast.error('שגיאה בהוספת ההערה')
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  async function handleUploadAttachment(file: File | null) {
+    if (!file || !id || !activeBoatId || !user) return
+
+    setUploadingAttachment(true)
+    try {
+      const safeFileName = `${Date.now()}_${file.name.replace(/[^\w.\-]/g, '_')}`
+      const storagePath = `boats/${activeBoatId}/maintenance/${id}/${safeFileName}`
+      const fileRef = ref(storage, storagePath)
+
+      await uploadBytes(fileRef, file, {
+        contentType: file.type || 'application/octet-stream',
+      })
+
+      await addDoc(collection(db, 'maintenance_attachments'), {
+        boatId: activeBoatId,
+        ticketId: id,
+        storagePath,
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        uploadedByUserId: user.uid,
+        createdAt: serverTimestamp(),
+      })
+
+      toast.success('הקובץ הועלה בהצלחה')
+      queryClient.invalidateQueries({ queryKey: ['maintenance_attachments', id] })
+    } catch {
+      toast.error('שגיאה בהעלאת הקובץ')
+    } finally {
+      setUploadingAttachment(false)
+    }
+  }
+
+  async function handleOpenAttachment(storagePath: string) {
+    try {
+      const url = await getDownloadURL(ref(storage, storagePath))
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      toast.error('שגיאה בפתיחת הקובץ')
+    }
+  }
+
+  async function handleDeleteAttachment(attachmentId: string, storagePath: string) {
+    if (!canManage) return
+    if (!window.confirm('למחוק את הקובץ המצורף?')) return
+
+    setDeletingAttachmentId(attachmentId)
+    try {
+      await deleteObject(ref(storage, storagePath))
+      await deleteDoc(doc(db, 'maintenance_attachments', attachmentId))
+      toast.success('הקובץ נמחק')
+      queryClient.invalidateQueries({ queryKey: ['maintenance_attachments', id] })
+    } catch {
+      toast.error('שגיאה במחיקת הקובץ')
+    } finally {
+      setDeletingAttachmentId(null)
     }
   }
 
@@ -160,6 +227,59 @@ export default function MaintenanceDetailPage() {
           </div>
         </div>
       )}
+
+      <div className="card space-y-3">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">קבצים מצורפים</p>
+
+        {ticket.status !== 'closed' && (
+          <div>
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">העלאת קובץ</label>
+            <input
+              type="file"
+              onChange={(e) => void handleUploadAttachment(e.target.files?.[0] ?? null)}
+              disabled={uploadingAttachment}
+              className="input"
+            />
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">מותר: תמונות, PDF, וידאו עד 10MB</p>
+          </div>
+        )}
+
+        {uploadingAttachment && (
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <LoadingSpinner size="sm" />
+            מעלה קובץ...
+          </div>
+        )}
+
+        {!attachments || attachments.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">אין קבצים מצורפים</p>
+        ) : (
+          <div className="space-y-2">
+            {attachments.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                <button
+                  onClick={() => handleOpenAttachment(a.storagePath)}
+                  className="text-right min-w-0 flex-1"
+                >
+                  <p className="text-sm text-blue-600 dark:text-blue-400 truncate hover:underline">{a.fileName}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {Math.max(1, Math.round(a.sizeBytes / 1024))}KB · {formatDateTime(a.createdAt)}
+                  </p>
+                </button>
+                {canManage && (
+                  <button
+                    onClick={() => void handleDeleteAttachment(a.id, a.storagePath)}
+                    disabled={deletingAttachmentId === a.id}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60"
+                  >
+                    {deletingAttachmentId === a.id ? 'מוחק...' : 'מחק'}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Add comment */}
       {ticket.status !== 'closed' && (
