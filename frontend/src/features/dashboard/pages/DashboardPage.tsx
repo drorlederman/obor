@@ -62,6 +62,13 @@ function sourceLabel(source: string) {
   return 'שירות תחזית ימית דרך שרת האפליקציה'
 }
 
+function windColorClass(knots: number) {
+  if (knots >= 22) return 'bg-red-500 dark:bg-red-400'
+  if (knots >= 16) return 'bg-amber-500 dark:bg-amber-400'
+  if (knots >= 10) return 'bg-emerald-500 dark:bg-emerald-400'
+  return 'bg-sky-500 dark:bg-sky-400'
+}
+
 export default function DashboardPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -194,7 +201,7 @@ export default function DashboardPage() {
             />
           </div>
         ) : (
-          <div className="card space-y-4 bg-sky-50/70 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
+          <div className="card space-y-5 bg-sky-50/70 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs text-sky-700 dark:text-sky-300">תחנה פעילה</p>
@@ -258,19 +265,74 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — עוצמת רוח</p>
-              <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 p-2 border border-sky-100 dark:border-sky-900">
-                <div className="grid grid-cols-6 md:grid-cols-12 gap-1 items-end h-24">
+              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — עוצמת רוח (קשר)</p>
+              <div className="rounded-xl bg-white/80 dark:bg-slate-900/40 p-3 border border-sky-100 dark:border-sky-900 space-y-3">
+                {(() => {
+                  const points = marineSnapshot.timeline.slice(0, 12)
+                  const maxKnots = Math.max(12, ...points.map((point) => point.windKnots))
+                  const topScale = Math.ceil(maxKnots / 2) * 2
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 px-1">
+                        <span>{topScale} קשר</span>
+                        <span>{Math.round(topScale / 2)} קשר</span>
+                        <span>0</span>
+                      </div>
+                      <div className="grid grid-cols-6 md:grid-cols-12 gap-1.5 items-end h-28 border-b border-dashed border-sky-100 dark:border-sky-900 pb-2">
+                        {points.map((point) => {
+                          const height = Math.max(10, Math.min(108, (point.windKnots / topScale) * 108))
+                          const barColor = windColorClass(point.windKnots)
+                          return (
+                            <div key={`wind-bar-${point.at.getTime()}`} className="flex flex-col items-center gap-1">
+                              <div
+                                className={`w-full rounded-md transition-all ${barColor}`}
+                                style={{ height: `${height}px` }}
+                                title={`${point.windKnots.toFixed(1)} קשר`}
+                              />
+                              <p className="text-[10px] text-gray-600 dark:text-gray-300">{formatHour(point.at)}</p>
+                              <p className="text-[10px] font-medium text-gray-700 dark:text-gray-200">
+                                {point.windKnots.toFixed(0)}
+                              </p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="flex items-center justify-center gap-3 text-[10px] text-gray-600 dark:text-gray-300">
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500 dark:bg-sky-400" />קל</span>
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400" />בינוני</span>
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400" />חזק</span>
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 dark:bg-red-400" />חזק מאוד</span>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — כיוון רוח</p>
+              <div className="rounded-xl bg-white/80 dark:bg-slate-900/40 p-3 border border-sky-100 dark:border-sky-900">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
                   {marineSnapshot.timeline.slice(0, 12).map((point) => {
-                    const height = Math.max(14, Math.min(96, (point.windKnots / 35) * 96))
+                    const windLevelClass = windColorClass(point.windKnots).replace('bg-', 'text-')
                     return (
-                      <div key={`wind-bar-${point.at.getTime()}`} className="flex flex-col items-center gap-1">
-                        <div
-                          className="w-full rounded-md bg-blue-500/80 dark:bg-blue-400 transition-all"
-                          style={{ height: `${height}px` }}
-                          title={`${point.windKnots.toFixed(1)} קשר`}
-                        />
+                      <div
+                        key={`wind-dir-${point.at.getTime()}`}
+                        className="rounded-lg border border-sky-100 dark:border-sky-900 bg-white/90 dark:bg-slate-900/55 p-2 text-center space-y-1.5"
+                      >
                         <p className="text-[10px] text-gray-600 dark:text-gray-300">{formatHour(point.at)}</p>
+                        <div className="flex justify-center">
+                          <span
+                            className={`inline-flex w-7 h-7 items-center justify-center ${windLevelClass}`}
+                            style={{ transform: `rotate(${point.windDirectionDegrees}deg)` }}
+                            aria-hidden
+                          >
+                            ↑
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-gray-700 dark:text-gray-200">{point.windKnots.toFixed(0)} קשר</p>
+                        <p className="text-[11px] text-gray-600 dark:text-gray-300">{formatCompass(point.windDirectionDegrees)}</p>
                       </div>
                     )
                   })}
@@ -279,27 +341,25 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — כיוון רוח</p>
-              <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 p-2 border border-sky-100 dark:border-sky-900">
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                  {marineSnapshot.timeline.slice(0, 12).map((point) => (
-                    <div
-                      key={`wind-dir-${point.at.getTime()}`}
-                      className="rounded-lg border border-sky-100 dark:border-sky-900 bg-white/80 dark:bg-slate-900/50 p-2 text-center space-y-1"
-                    >
-                      <p className="text-[10px] text-gray-600 dark:text-gray-300">{formatHour(point.at)}</p>
-                      <div className="flex justify-center">
-                        <span
-                          className="inline-flex w-6 h-6 items-center justify-center text-emerald-600 dark:text-emerald-400"
-                          style={{ transform: `rotate(${point.windDirectionDegrees}deg)` }}
-                          aria-hidden
-                        >
-                          ↑
-                        </span>
+              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — גובה גל (מטר)</p>
+              <div className="rounded-xl bg-white/80 dark:bg-slate-900/40 p-3 border border-sky-100 dark:border-sky-900">
+                <div className="grid grid-cols-6 md:grid-cols-12 gap-1.5 items-end h-20">
+                  {marineSnapshot.timeline.slice(0, 12).map((point) => {
+                    const height = Math.max(8, Math.min(76, point.waveHeightMeters * 36))
+                    return (
+                      <div key={`wave-bar-${point.at.getTime()}`} className="flex flex-col items-center gap-1">
+                        <div
+                          className="w-full rounded-md bg-indigo-500/80 dark:bg-indigo-400 transition-all"
+                          style={{ height: `${height}px` }}
+                          title={`${point.waveHeightMeters.toFixed(1)} מטר`}
+                        />
+                        <p className="text-[10px] text-gray-600 dark:text-gray-300">{formatHour(point.at)}</p>
+                        <p className="text-[10px] font-medium text-gray-700 dark:text-gray-200">
+                          {point.waveHeightMeters.toFixed(1)}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-gray-700 dark:text-gray-200">{formatCompass(point.windDirectionDegrees)}</p>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>
