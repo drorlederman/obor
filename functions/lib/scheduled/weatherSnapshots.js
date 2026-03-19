@@ -9,18 +9,40 @@ const errors_1 = require("../shared/errors");
 function toNumber(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
+function normalizeMarinaQueries(name) {
+    const trimmed = name.trim();
+    const withoutMarinaWord = trimmed.replace(/^מרינה\s+/u, '');
+    const withoutPunctuation = withoutMarinaWord.replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+    const queries = new Set([
+        trimmed,
+        withoutMarinaWord,
+        withoutPunctuation,
+        `${trimmed}, ישראל`,
+        `${withoutMarinaWord}, ישראל`,
+        `${trimmed}, Israel`,
+        `${withoutMarinaWord}, Israel`,
+    ]);
+    return [...queries].filter(Boolean);
+}
 async function geocodeMarina(name) {
-    const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?count=1&language=he&format=json&name=${encodeURIComponent(name)}`;
     try {
-        const response = await fetch(geocodeUrl);
-        if (!response.ok)
-            return null;
-        const json = (await response.json());
-        const first = json.results?.[0];
-        if (!first)
-            return null;
-        const label = [first.name, first.country].filter(Boolean).join(', ');
-        return { lat: first.latitude, lon: first.longitude, label: label || name };
+        const queries = normalizeMarinaQueries(name);
+        for (const q of queries) {
+            const heUrl = `https://geocoding-api.open-meteo.com/v1/search?count=1&language=he&format=json&name=${encodeURIComponent(q)}`;
+            const noLangUrl = `https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&name=${encodeURIComponent(q)}`;
+            for (const url of [heUrl, noLangUrl]) {
+                const response = await fetch(url);
+                if (!response.ok)
+                    continue;
+                const json = (await response.json());
+                const first = json.results?.[0];
+                if (!first)
+                    continue;
+                const label = [first.name, first.country].filter(Boolean).join(', ');
+                return { lat: first.latitude, lon: first.longitude, label: label || name };
+            }
+        }
+        return null;
     }
     catch {
         return null;
@@ -74,6 +96,7 @@ function buildTimeline(wind, marine) {
             at: new Date(time).toISOString(),
             windKnots: toNumber(windHourly.wind_speed_10m?.[index]),
             gustKnots: toNumber(windHourly.wind_gusts_10m?.[index]),
+            windDirectionDegrees: toNumber(windHourly.wind_direction_10m?.[index]),
             waveHeightMeters: wave?.waveHeightMeters ?? 0,
             waveDirectionDegrees: wave?.waveDirectionDegrees ?? 0,
             wavePeriodSeconds: wave?.wavePeriodSeconds ?? 0,
@@ -88,14 +111,11 @@ async function updateBoatWeatherSnapshot(boatId) {
     const db = (0, firestore_1.getFirestore)();
     const boatSnap = await db.doc(`boats/${boatId}`).get();
     if (!boatSnap.exists)
-        return 'skipped';
+        return 'skipped_boat_missing';
     const boatData = boatSnap.data();
     const homeMarina = (boatData?.homeMarina ?? '').trim();
-    const boatStatus = boatData?.status ?? 'active';
     if (!homeMarina)
-        return 'skipped';
-    if (!['active', 'maintenance'].includes(boatStatus))
-        return 'skipped';
+        return 'skipped_home_marina_missing';
     const weatherSettingsRef = db.doc(`system_settings/${boatId}_weather`);
     const weatherSettingsSnap = await weatherSettingsRef.get();
     const weatherSettings = weatherSettingsSnap.data() ?? {};
@@ -105,7 +125,7 @@ async function updateBoatWeatherSnapshot(boatId) {
     if (typeof lat !== 'number' || typeof lon !== 'number') {
         const geocode = await geocodeMarina(homeMarina);
         if (!geocode)
-            return 'skipped';
+            return 'skipped_geocode_failed';
         lat = geocode.lat;
         lon = geocode.lon;
         locationLabel = geocode.label;
@@ -119,11 +139,12 @@ async function updateBoatWeatherSnapshot(boatId) {
         }, { merge: true });
     }
     const [wind, marine] = await Promise.all([fetchWind(lat, lon), fetchMarine(lat, lon)]);
-    if (!wind || !marine)
-        return 'skipped';
-    const timeline = buildTimeline(wind, marine);
+    if (!wind)
+        return 'skipped_wind_fetch_failed';
+    // Marine data may be unavailable for some inland points; keep refresh working with wind fallback.
+    const timeline = buildTimeline(wind, marine ?? {});
     if (timeline.length === 0)
-        return 'skipped';
+        return 'skipped_timeline_empty';
     const generatedAtIso = new Date().toISOString();
     const current = timeline[0];
     await db.doc(`weather_snapshots/${boatId}`).set({
@@ -169,7 +190,18 @@ exports.refreshWeatherSnapshotNow = (0, https_1.onCall)(async (request) => {
     try {
         const result = await updateBoatWeatherSnapshot(boatId);
         if (result !== 'updated') {
-            throw errors_1.Errors.preconditionFailed('לא ניתן לרענן תחזית. בדוק שמוגדרת מרינה תקינה לסירה');
+            if (result === 'skipped_home_marina_missing') {
+                throw errors_1.Errors.preconditionFailed('לא ניתן לרענן תחזית. יש להגדיר מרינה בהגדרות מזג אוויר');
+            }
+            if (result === 'skipped_geocode_failed') {
+                const boatSnap = await (0, firestore_1.getFirestore)().doc(`boats/${boatId}`).get();
+                const homeMarina = (boatSnap.data()?.homeMarina ?? '').trim();
+                throw errors_1.Errors.preconditionFailed(`לא ניתן לזהות את המרינה "${homeMarina}". נסה שם פשוט יותר, למשל "הרצליה"`);
+            }
+            if (result === 'skipped_wind_fetch_failed' || result === 'skipped_timeline_empty') {
+                throw errors_1.Errors.preconditionFailed('שירות מזג האוויר זמנית לא זמין. נסה שוב בעוד כמה דקות');
+            }
+            throw errors_1.Errors.preconditionFailed('לא ניתן לרענן תחזית כרגע');
         }
     }
     catch (err) {

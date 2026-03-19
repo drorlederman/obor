@@ -7,6 +7,7 @@ interface TimelinePoint {
   at: Date
   windKnots: number
   gustKnots: number
+  windDirectionDegrees: number
   waveHeightMeters: number
   waveDirectionDegrees: number
   wavePeriodSeconds: number
@@ -28,6 +29,7 @@ function toTimelinePoint(raw: unknown): TimelinePoint {
     at: new Date(String(data.at ?? new Date().toISOString())),
     windKnots: Number(data.windKnots ?? 0),
     gustKnots: Number(data.gustKnots ?? 0),
+    windDirectionDegrees: Number(data.windDirectionDegrees ?? 0),
     waveHeightMeters: Number(data.waveHeightMeters ?? 0),
     waveDirectionDegrees: Number(data.waveDirectionDegrees ?? 0),
     wavePeriodSeconds: Number(data.wavePeriodSeconds ?? 0),

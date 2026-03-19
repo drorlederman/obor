@@ -56,6 +56,12 @@ function formatCompass(degrees: number) {
   return 'צפון-מערב'
 }
 
+function sourceLabel(source: string) {
+  if (source === 'open-meteo') return 'שירות אופן-מטאו דרך שרת האפליקציה'
+  if (source === 'windy') return 'שירות תחזית ימית דרך שרת האפליקציה'
+  return 'שירות תחזית ימית דרך שרת האפליקציה'
+}
+
 export default function DashboardPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -250,6 +256,57 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — עוצמת רוח</p>
+              <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 p-2 border border-sky-100 dark:border-sky-900">
+                <div className="grid grid-cols-6 md:grid-cols-12 gap-1 items-end h-24">
+                  {marineSnapshot.timeline.slice(0, 12).map((point) => {
+                    const height = Math.max(14, Math.min(96, (point.windKnots / 35) * 96))
+                    return (
+                      <div key={`wind-bar-${point.at.getTime()}`} className="flex flex-col items-center gap-1">
+                        <div
+                          className="w-full rounded-md bg-blue-500/80 dark:bg-blue-400 transition-all"
+                          style={{ height: `${height}px` }}
+                          title={`${point.windKnots.toFixed(1)} קשר`}
+                        />
+                        <p className="text-[10px] text-gray-600 dark:text-gray-300">{formatHour(point.at)}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-sky-800 dark:text-sky-200">תחזית 12 שעות — כיוון רוח</p>
+              <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 p-2 border border-sky-100 dark:border-sky-900">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                  {marineSnapshot.timeline.slice(0, 12).map((point) => (
+                    <div
+                      key={`wind-dir-${point.at.getTime()}`}
+                      className="rounded-lg border border-sky-100 dark:border-sky-900 bg-white/80 dark:bg-slate-900/50 p-2 text-center space-y-1"
+                    >
+                      <p className="text-[10px] text-gray-600 dark:text-gray-300">{formatHour(point.at)}</p>
+                      <div className="flex justify-center">
+                        <span
+                          className="inline-flex w-6 h-6 items-center justify-center text-emerald-600 dark:text-emerald-400"
+                          style={{ transform: `rotate(${point.windDirectionDegrees}deg)` }}
+                          aria-hidden
+                        >
+                          ↑
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-700 dark:text-gray-200">{formatCompass(point.windDirectionDegrees)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-sky-700 dark:text-sky-300">
+              מקור הנתונים: {sourceLabel(marineSnapshot.source)}
+            </p>
           </div>
         )}
       </section>
