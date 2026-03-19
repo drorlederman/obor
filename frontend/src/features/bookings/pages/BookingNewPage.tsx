@@ -185,6 +185,7 @@ export default function BookingNewPage() {
           <input
             type="datetime-local"
             {...register('startTime')}
+            step={1800}
             className="input"
           />
           {errors.startTime && (
@@ -200,6 +201,7 @@ export default function BookingNewPage() {
           <input
             type="datetime-local"
             {...register('endTime')}
+            step={1800}
             className="input"
           />
           {errors.endTime && (

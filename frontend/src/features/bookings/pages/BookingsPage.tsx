@@ -9,7 +9,7 @@ import ErrorState from '@/components/ui/ErrorState'
 import EmptyState from '@/components/ui/EmptyState'
 import type { Booking } from '@/hooks/useBookings'
 import type { BookingType } from '@/types'
-import type { CalendarViewMode } from '@/features/bookings/components/BookingCalendar'
+import type { CalendarSelectionRange, CalendarViewMode } from '@/features/bookings/components/BookingCalendar'
 
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -40,6 +40,7 @@ export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<CalendarViewMode>('week')
   const [anchorDate, setAnchorDate] = useState(new Date())
   const [filterType, setFilterType] = useState<BookingType | 'all'>('all')
+  const [selectedRange, setSelectedRange] = useState<CalendarSelectionRange | null>(null)
   const range = useMemo(() => getRangeForView(viewMode, anchorDate), [viewMode, anchorDate])
 
   const { data: bookings, isLoading, isError } = useBookingsRange(range)
@@ -54,9 +55,10 @@ export default function BookingsPage() {
       next.setMonth(next.getMonth() + direction)
     }
     setAnchorDate(next)
+    setSelectedRange(null)
   }
 
-  function handleSlotSelect(start: Date, end: Date) {
+  function handleReserveRange(start: Date, end: Date) {
     navigate(`/bookings/new?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`)
   }
 
@@ -89,14 +91,45 @@ export default function BookingsPage() {
             viewMode={viewMode}
             anchorDate={anchorDate}
             bookings={bookings ?? []}
-            onViewModeChange={setViewMode}
+            onViewModeChange={(mode) => {
+              setViewMode(mode)
+              setSelectedRange(null)
+            }}
             onNavigate={handleNavigate}
-            onToday={() => setAnchorDate(new Date())}
-            onDatePick={setAnchorDate}
-            onSlotSelect={handleSlotSelect}
+            onToday={() => {
+              setAnchorDate(new Date())
+              setSelectedRange(null)
+            }}
+            onDatePick={(date) => {
+              setAnchorDate(date)
+              setSelectedRange(null)
+            }}
+            selectedRange={selectedRange}
+            onSlotRangeChange={setSelectedRange}
           />
         )}
       </div>
+
+      {selectedRange && (
+        <div className="card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            נבחר טווח: {' '}
+            <span className="font-semibold">
+              {selectedRange.start.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {' '}–{' '}
+            <span className="font-semibold">
+              {selectedRange.end.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </p>
+          <button
+            onClick={() => handleReserveRange(selectedRange.start, selectedRange.end)}
+            className="btn-primary text-sm px-4 py-2"
+          >
+            שריין את הטווח שנבחר
+          </button>
+        </div>
+      )}
 
       {/* Type filter chips */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -143,7 +176,7 @@ export default function BookingsPage() {
           <div className="card">
             <EmptyState
               title={viewMode === 'day' ? 'אין הזמנות ביום זה' : viewMode === 'week' ? 'אין הזמנות בשבוע זה' : 'אין הזמנות בחודש זה'}
-              description="אפשר ללחוץ על סלוט ביומן כדי ליצור הזמנה חדשה מיד"
+              description="אפשר לבחור כמה סלוטים של חצי שעה ביומן כדי ליצור הזמנה חדשה"
             />
           </div>
         )}

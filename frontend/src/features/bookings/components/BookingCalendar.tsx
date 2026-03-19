@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { Booking } from '@/hooks/useBookings'
 import { BOOKING_TYPE_DOT } from './BookingTypeChip'
 
@@ -7,9 +8,18 @@ const MONTH_NAMES = [
 ]
 const DAY_NAMES = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'שבת']
 const SHORT_DAY_NAMES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳']
-const HOURS = Array.from({ length: 18 }, (_, i) => i + 6) // 06:00-23:00
+const HALF_HOUR_SLOTS = Array.from({ length: 36 }, (_, i) => {
+  const hour = 6 + Math.floor(i / 2)
+  const minute = (i % 2) * 30
+  return { hour, minute }
+}) // 06:00-23:30
+const SLOT_MS = 30 * 60 * 1000
 
 export type CalendarViewMode = 'day' | 'week' | 'month'
+export interface CalendarSelectionRange {
+  start: Date
+  end: Date
+}
 
 interface Props {
   viewMode: CalendarViewMode
@@ -19,7 +29,8 @@ interface Props {
   onNavigate: (direction: -1 | 1) => void
   onToday: () => void
   onDatePick: (date: Date) => void
-  onSlotSelect: (start: Date, end: Date) => void
+  selectedRange: CalendarSelectionRange | null
+  onSlotRangeChange: (range: CalendarSelectionRange | null) => void
 }
 
 function startOfDay(date: Date) {
@@ -141,15 +152,48 @@ function DayWeekView({
   viewMode,
   anchorDate,
   bookings,
-  onSlotSelect,
+  selectedRange,
+  onSlotRangeChange,
 }: {
   viewMode: CalendarViewMode
   anchorDate: Date
   bookings: Booking[]
-  onSlotSelect: (start: Date, end: Date) => void
+  selectedRange: CalendarSelectionRange | null
+  onSlotRangeChange: (range: CalendarSelectionRange | null) => void
 }) {
+  const [anchorSlot, setAnchorSlot] = useState<Date | null>(null)
+  const [dragStartSlot, setDragStartSlot] = useState<Date | null>(null)
+  const [dragCurrentSlot, setDragCurrentSlot] = useState<Date | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const suppressNextClickRef = useRef(false)
   const days = getVisibleDays(viewMode, anchorDate)
   const activeBookings = bookings.filter((b) => b.status === 'active')
+  const dragPreviewRange =
+    isDragging && dragStartSlot && dragCurrentSlot
+      ? {
+          start: dragCurrentSlot.getTime() < dragStartSlot.getTime() ? dragCurrentSlot : dragStartSlot,
+          end: new Date(
+            (dragCurrentSlot.getTime() < dragStartSlot.getTime() ? dragStartSlot : dragCurrentSlot).getTime() + SLOT_MS,
+          ),
+        }
+      : null
+  const effectiveRange = dragPreviewRange ?? selectedRange
+
+  useEffect(() => {
+    if (!isDragging) return
+
+    function finalizeDrag() {
+      setIsDragging(false)
+      setDragStartSlot(null)
+      setDragCurrentSlot(null)
+      if (suppressNextClickRef.current) {
+        setAnchorSlot(null)
+      }
+    }
+
+    window.addEventListener('mouseup', finalizeDrag)
+    return () => window.removeEventListener('mouseup', finalizeDrag)
+  }, [isDragging])
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -164,28 +208,86 @@ function DayWeekView({
       </div>
 
       <div className="max-h-[560px] overflow-auto">
-        {HOURS.map((hour) => (
+        {HALF_HOUR_SLOTS.map(({ hour, minute }, slotIndex) => (
           <div
-            key={hour}
+            key={`${hour}:${minute}`}
             className={`grid ${viewMode === 'day' ? 'grid-cols-[56px_1fr]' : 'grid-cols-[56px_repeat(7,minmax(0,1fr))]'} border-t border-gray-100 dark:border-gray-800`}
           >
-            <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-3 bg-gray-50/60 dark:bg-gray-900/30">
-              {formatHour(hour)}
+            <div className="text-xs text-gray-500 dark:text-gray-400 px-2 py-2 bg-gray-50/60 dark:bg-gray-900/30">
+              {minute === 0 ? formatHour(hour) : '·'}
             </div>
             {days.map((date) => {
-              const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 0, 0, 0)
-              const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour + 1, 0, 0, 0)
+              const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute, 0, 0)
+              const end = new Date(start.getTime() + SLOT_MS)
               const slotBookings = activeBookings.filter((b) => b.startTime < end && b.endTime > start)
+              const slotStartingBookings = slotBookings.filter(
+                (booking) => booking.startTime.getTime() === start.getTime(),
+              )
+              const isOccupied = slotBookings.length > 0
+              const isSelected =
+                !!effectiveRange &&
+                start.getTime() >= effectiveRange.start.getTime() &&
+                start.getTime() < effectiveRange.end.getTime()
+
               return (
                 <button
-                  key={`${date.toISOString()}-${hour}`}
-                  onClick={() => onSlotSelect(start, new Date(start.getTime() + 2 * 60 * 60 * 1000))}
-                  className="min-h-[52px] relative border-r border-gray-100 dark:border-gray-800 last:border-r-0 hover:bg-primary-50/70 dark:hover:bg-primary-900/20 transition-colors text-right px-1"
+                  key={`${date.toISOString()}-${slotIndex}`}
+                  onMouseDown={() => {
+                    if (isOccupied) return
+                    setIsDragging(true)
+                    setDragStartSlot(start)
+                    setDragCurrentSlot(start)
+                    suppressNextClickRef.current = false
+                    onSlotRangeChange({ start, end })
+                  }}
+                  onMouseEnter={() => {
+                    if (!isDragging || !dragStartSlot) return
+                    if (isOccupied) return
+                    if (!sameDay(dragStartSlot, start)) return
+                    setDragCurrentSlot(start)
+                    const previewStart = start.getTime() < dragStartSlot.getTime() ? start : dragStartSlot
+                    const previewEndBase = start.getTime() < dragStartSlot.getTime() ? dragStartSlot : start
+                    onSlotRangeChange({
+                      start: previewStart,
+                      end: new Date(previewEndBase.getTime() + SLOT_MS),
+                    })
+                    if (start.getTime() !== dragStartSlot.getTime()) {
+                      suppressNextClickRef.current = true
+                    }
+                  }}
+                  onClick={() => {
+                    if (suppressNextClickRef.current) {
+                      suppressNextClickRef.current = false
+                      return
+                    }
+                    if (isOccupied) return
+
+                    if (!anchorSlot || !sameDay(anchorSlot, start)) {
+                      setAnchorSlot(start)
+                      onSlotRangeChange({ start, end })
+                      return
+                    }
+
+                    const rangeStart = start.getTime() < anchorSlot.getTime() ? start : anchorSlot
+                    const rangeEndBase = start.getTime() < anchorSlot.getTime() ? anchorSlot : start
+                    onSlotRangeChange({
+                      start: rangeStart,
+                      end: new Date(rangeEndBase.getTime() + SLOT_MS),
+                    })
+                    setAnchorSlot(null)
+                  }}
+                  className={`min-h-[34px] relative border-r border-gray-100 dark:border-gray-800 last:border-r-0 transition-colors text-right px-1 ${
+                    isOccupied
+                      ? 'bg-gray-100/70 dark:bg-gray-800/40 cursor-not-allowed'
+                      : isSelected
+                      ? 'bg-primary-100 dark:bg-primary-900/35 hover:bg-primary-100 dark:hover:bg-primary-900/35'
+                      : 'hover:bg-primary-50/70 dark:hover:bg-primary-900/20'
+                  }`}
                 >
-                  {slotBookings.slice(0, 2).map((booking) => (
+                  {slotStartingBookings.slice(0, 1).map((booking) => (
                     <div
                       key={booking.id}
-                      className={`mt-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-white truncate ${BOOKING_TYPE_DOT[booking.type]}`}
+                      className={`mt-0.5 rounded-md px-1 py-0.5 text-[10px] font-medium text-white truncate ${BOOKING_TYPE_DOT[booking.type]}`}
                     >
                       {booking.title}
                     </div>
@@ -196,9 +298,22 @@ function DayWeekView({
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 p-2 border-t border-gray-100 dark:border-gray-800">
-        לחץ על סלוט כדי לפתוח שיריון חדש בזמן הנבחר
-      </p>
+      <div className="flex items-center justify-between gap-2 p-2 border-t border-gray-100 dark:border-gray-800">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          לחץ פעמיים או לחץ וגרור כדי לבחור כמה סלוטים של חצאי שעות
+        </p>
+        {selectedRange && (
+          <button
+            onClick={() => {
+              setAnchorSlot(null)
+              onSlotRangeChange(null)
+            }}
+            className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+          >
+            נקה בחירה
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -211,7 +326,8 @@ export default function BookingCalendar({
   onNavigate,
   onToday,
   onDatePick,
-  onSlotSelect,
+  selectedRange,
+  onSlotRangeChange,
 }: Props) {
   return (
     <div>
@@ -274,7 +390,8 @@ export default function BookingCalendar({
           viewMode={viewMode}
           anchorDate={anchorDate}
           bookings={bookings}
-          onSlotSelect={onSlotSelect}
+          selectedRange={selectedRange}
+          onSlotRangeChange={onSlotRangeChange}
         />
       )}
     </div>
