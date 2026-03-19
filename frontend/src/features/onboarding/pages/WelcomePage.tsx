@@ -1,12 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { useBoat } from '@/context/BoatContext'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 export default function WelcomePage() {
   const navigate = useNavigate()
   const { signOut, user } = useAuth()
+  const { activeBoatId, loading: boatLoading } = useBoat()
   const [joinToken, setJoinToken] = useState('')
   const [showJoinInput, setShowJoinInput] = useState(false)
+
+  useEffect(() => {
+    if (!boatLoading && activeBoatId) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [activeBoatId, boatLoading, navigate])
 
   async function handleSignOut() {
     await signOut()
@@ -17,6 +26,14 @@ export default function WelcomePage() {
     const token = joinToken.trim()
     if (!token) return
     navigate(`/join/${encodeURIComponent(token)}`)
+  }
+
+  if (boatLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-navy-900 to-navy-950 flex items-center justify-center">
+        <LoadingSpinner size="lg" className="border-white border-t-transparent" />
+      </div>
+    )
   }
 
   return (

@@ -7,6 +7,11 @@ import type { Booking, BookingType } from '@/types'
 
 export type { Booking }
 
+interface DateRange {
+  start: Date
+  end: Date
+}
+
 function docToBooking(id: string, data: DocumentData): Booking {
   return {
     id,
@@ -33,23 +38,41 @@ function docToBooking(id: string, data: DocumentData): Booking {
 /** Bookings for a specific month (all statuses). */
 export function useBookings(year: number, month: number) {
   const { activeBoatId } = useBoat()
-  return useFirestoreQuery(
+  const result = useFirestoreQuery(
     ['bookings', activeBoatId, year, month],
     activeBoatId
-      ? () => {
-          const start = new Date(year, month, 1)
-          const end = new Date(year, month + 1, 1)
-          return query(
-            collection(db, 'bookings'),
-            where('boatId', '==', activeBoatId),
-            where('startTime', '>=', Timestamp.fromDate(start)),
-            where('startTime', '<', Timestamp.fromDate(end)),
-            orderBy('startTime', 'asc'),
-          )
-        }
+      ? () => query(collection(db, 'bookings'), where('boatId', '==', activeBoatId))
       : null,
     docToBooking,
   )
+
+  const start = new Date(year, month, 1)
+  const end = new Date(year, month + 1, 1)
+  const data = result.data
+    ?.filter((booking) => booking.startTime >= start && booking.startTime < end)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  return { ...result, data }
+}
+
+/** Bookings intersecting a custom date range (all statuses). */
+export function useBookingsRange(range: DateRange | null) {
+  const { activeBoatId } = useBoat()
+  const result = useFirestoreQuery(
+    ['bookings-range', activeBoatId, range?.start.toISOString(), range?.end.toISOString()],
+    activeBoatId
+      ? () => query(collection(db, 'bookings'), where('boatId', '==', activeBoatId))
+      : null,
+    docToBooking,
+  )
+
+  if (!range) return { ...result, data: [] as Booking[] }
+
+  const data = result.data
+    ?.filter((booking) => booking.startTime < range.end && booking.endTime > range.start)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  return { ...result, data }
 }
 
 /** Next N active bookings from now. */

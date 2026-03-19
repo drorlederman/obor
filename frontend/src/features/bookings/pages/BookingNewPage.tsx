@@ -1,4 +1,4 @@
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
@@ -29,11 +29,28 @@ function computeCreditPreview(startTime: string, endTime: string) {
 
 const ALL_TYPES: BookingType[] = ['private_sail', 'partner_sail', 'marina_use', 'maintenance_block']
 
+function toDateTimeLocalValue(date: Date) {
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`
+}
+
 export default function BookingNewPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { activeBoatId, isScheduler } = useBoat()
   const { data: partner, isLoading: loadingPartner } = usePartner()
+
+  const startFromCalendar = searchParams.get('start')
+  const endFromCalendar = searchParams.get('end')
+  const parsedStart = startFromCalendar ? new Date(startFromCalendar) : null
+  const parsedEnd = endFromCalendar ? new Date(endFromCalendar) : null
+  const defaultStart = parsedStart && !Number.isNaN(parsedStart.getTime()) ? toDateTimeLocalValue(parsedStart) : ''
+  const defaultEnd = parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? toDateTimeLocalValue(parsedEnd) : ''
 
   const {
     register,
@@ -42,7 +59,7 @@ export default function BookingNewPage() {
     formState: { errors, isSubmitting },
   } = useForm<BookingFormData>({
     resolver: zodResolver(bookingSchema),
-    defaultValues: { type: 'private_sail', notes: '' },
+    defaultValues: { type: 'private_sail', notes: '', startTime: defaultStart, endTime: defaultEnd },
   })
 
   const watchType = watch('type')

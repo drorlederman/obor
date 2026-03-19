@@ -9,9 +9,9 @@ interface BoatGuardProps {
 
 export default function BoatGuard({ children }: BoatGuardProps) {
   const { user, loading } = useAuth()
-  const { activeBoatId, memberships } = useBoat()
+  const { activeBoatId, memberships, loading: boatLoading } = useBoat()
 
-  if (loading) {
+  if (loading || boatLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />

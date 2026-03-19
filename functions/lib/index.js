@@ -48,4 +48,5 @@ __exportStar(require("./scheduled/expireInvitations"), exports);
 __exportStar(require("./scheduled/paymentReminders"), exports);
 __exportStar(require("./scheduled/maintenanceAlerts"), exports);
 __exportStar(require("./scheduled/bookingReminders"), exports);
+__exportStar(require("./scheduled/weatherSnapshots"), exports);
 //# sourceMappingURL=index.js.map

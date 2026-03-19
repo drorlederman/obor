@@ -145,7 +145,7 @@ export default function AppLayout() {
       {/* ── Body: sidebar (desktop) + main content ── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — desktop only, placed at end (RTL: right side) */}
-        <aside className="hidden md:flex flex-col w-56 bg-white dark:bg-gray-900 border-s border-gray-200 dark:border-gray-800 shrink-0 order-last">
+        <aside className="hidden md:flex flex-col w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shrink-0">
           <nav className="flex-1 overflow-y-auto p-3 space-y-1">
             {SIDEBAR_ITEMS.map((item) => (
               <NavLink
@@ -226,48 +226,65 @@ export default function AppLayout() {
       </nav>
 
       {/* ── More menu sheet — mobile ── */}
-      {moreOpen && (
-        <>
-          <div
-            className="md:hidden fixed inset-0 z-50 bg-black/40"
-            onClick={() => setMoreOpen(false)}
-          />
-          <div className="md:hidden fixed bottom-16 inset-x-0 z-50 mx-4 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-              <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                {user?.displayName ?? user?.email}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{roleLabel}</p>
-            </div>
-            <div className="p-2 space-y-1">
-              {[
-                { to: '/announcements', label: 'הודעות' },
-                { to: '/checklists', label: "צ'קליסטים" },
-                { to: '/contacts', label: 'אנשי קשר' },
-                { to: '/finance', label: 'פיננסים' },
-                { to: '/feedback', label: 'פידבק' },
-                { to: '/switch-boat', label: 'החלף סירה' },
-                { to: '/profile', label: 'פרופיל' },
-              ].map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMoreOpen(false)}
-                  className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  {item.label}
-                </NavLink>
-              ))}
+      <>
+        <div
+          className={`md:hidden fixed inset-0 z-50 bg-black/40 transition-opacity duration-300 ${
+            moreOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setMoreOpen(false)}
+        />
+        <aside
+          className={`md:hidden fixed top-0 right-0 bottom-0 z-50 w-72 max-w-[85vw] bg-white dark:bg-gray-900 shadow-2xl border-l border-gray-200 dark:border-gray-800 overflow-y-auto transition-transform duration-300 ease-out ${
+            moreOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          aria-hidden={!moreOpen}
+        >
+          <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 p-4 border-b border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-gray-900 dark:text-white text-sm">תפריט</p>
               <button
-                onClick={handleSignOut}
-                className="w-full text-right px-4 py-3 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                onClick={() => setMoreOpen(false)}
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="סגור תפריט"
               >
-                יציאה
+                <span className="text-base leading-none">✕</span>
               </button>
             </div>
           </div>
-        </>
-      )}
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">
+              {user?.displayName ?? user?.email}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{roleLabel}</p>
+          </div>
+          <div className="p-2 space-y-1">
+            {[
+              { to: '/announcements', label: 'הודעות' },
+              { to: '/checklists', label: "צ'קליסטים" },
+              { to: '/contacts', label: 'אנשי קשר' },
+              { to: '/finance', label: 'פיננסים' },
+              { to: '/feedback', label: 'פידבק' },
+              { to: '/switch-boat', label: 'החלף סירה' },
+              { to: '/profile', label: 'פרופיל' },
+            ].map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMoreOpen(false)}
+                className="block px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                {item.label}
+              </NavLink>
+            ))}
+            <button
+              onClick={handleSignOut}
+              className="w-full text-right px-4 py-3 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              יציאה
+            </button>
+          </div>
+        </aside>
+      </>
     </div>
   )
 }

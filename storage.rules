@@ -21,12 +21,19 @@ service firebase.storage {
 
     function isActiveIn(boatId) {
       let m = getMembership(boatId);
-      return isAuthenticated() && m != null && m.status == 'active';
+      let memberDoc = firestore.get(/databases/(default)/documents/boat_members/$(uid() + '_' + boatId));
+      return isAuthenticated() && (
+        (m != null && m.status == 'active') ||
+        (m == null && memberDoc.data != null && memberDoc.data.status == 'active')
+      );
     }
 
     function getRoleIn(boatId) {
       let m = getMembership(boatId);
-      return m != null ? m.role : null;
+      let memberDoc = firestore.get(/databases/(default)/documents/boat_members/$(uid() + '_' + boatId));
+      return m != null && m.status == 'active'
+        ? m.role
+        : (memberDoc.data != null && memberDoc.data.status == 'active' ? memberDoc.data.role : null);
     }
 
     function isAdminOf(boatId) {

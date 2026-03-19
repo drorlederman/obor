@@ -1,33 +1,68 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useBookings } from '@/hooks/useBookings'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useBookingsRange } from '@/hooks/useBookings'
 import BookingCalendar from '@/features/bookings/components/BookingCalendar'
 import BookingCard from '@/features/bookings/components/BookingCard'
 import { BOOKING_TYPE_LABELS } from '@/features/bookings/components/BookingTypeChip'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ErrorState from '@/components/ui/ErrorState'
+import EmptyState from '@/components/ui/EmptyState'
 import type { Booking } from '@/hooks/useBookings'
 import type { BookingType } from '@/types'
+import type { CalendarViewMode } from '@/features/bookings/components/BookingCalendar'
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function startOfWeek(date: Date) {
+  const dayStart = startOfDay(date)
+  return new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() - dayStart.getDay())
+}
+
+function getRangeForView(viewMode: CalendarViewMode, anchorDate: Date) {
+  if (viewMode === 'day') {
+    const start = startOfDay(anchorDate)
+    return { start, end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1) }
+  }
+  if (viewMode === 'week') {
+    const start = startOfWeek(anchorDate)
+    return { start, end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7) }
+  }
+  return {
+    start: new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1),
+    end: new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 1),
+  }
+}
 
 export default function BookingsPage() {
-  const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth())
-  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const navigate = useNavigate()
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('week')
+  const [anchorDate, setAnchorDate] = useState(new Date())
   const [filterType, setFilterType] = useState<BookingType | 'all'>('all')
+  const range = useMemo(() => getRangeForView(viewMode, anchorDate), [viewMode, anchorDate])
 
-  const { data: bookings, isLoading, isError } = useBookings(year, month)
+  const { data: bookings, isLoading, isError } = useBookingsRange(range)
 
-  function handleMonthChange(y: number, m: number) {
-    setYear(y)
-    setMonth(m)
-    setSelectedDay(null)
+  function handleNavigate(direction: -1 | 1) {
+    const next = new Date(anchorDate)
+    if (viewMode === 'day') {
+      next.setDate(next.getDate() + direction)
+    } else if (viewMode === 'week') {
+      next.setDate(next.getDate() + direction * 7)
+    } else {
+      next.setMonth(next.getMonth() + direction)
+    }
+    setAnchorDate(next)
   }
 
-  // Filter bookings for list
+  function handleSlotSelect(start: Date, end: Date) {
+    navigate(`/bookings/new?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`)
+  }
+
   const listBookings: Booking[] = (bookings ?? []).filter((b) => {
     if (b.status === 'cancelled') return false
     if (filterType !== 'all' && b.type !== filterType) return false
-    if (selectedDay !== null && b.startTime.getDate() !== selectedDay) return false
     return true
   })
 
@@ -48,15 +83,17 @@ export default function BookingsPage() {
             <LoadingSpinner size="md" />
           </div>
         ) : isError ? (
-          <p className="text-center text-sm text-red-500 py-4">שגיאה בטעינת ההזמנות</p>
+          <ErrorState message="שגיאה בטעינת ההזמנות" />
         ) : (
           <BookingCalendar
-            year={year}
-            month={month}
+            viewMode={viewMode}
+            anchorDate={anchorDate}
             bookings={bookings ?? []}
-            onMonthChange={handleMonthChange}
-            selectedDay={selectedDay}
-            onDaySelect={setSelectedDay}
+            onViewModeChange={setViewMode}
+            onNavigate={handleNavigate}
+            onToday={() => setAnchorDate(new Date())}
+            onDatePick={setAnchorDate}
+            onSlotSelect={handleSlotSelect}
           />
         )}
       </div>
@@ -90,34 +127,24 @@ export default function BookingsPage() {
 
       {/* Bookings list */}
       <section>
-        {selectedDay && (
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {selectedDay} בחודש
-            </p>
-            <button
-              onClick={() => setSelectedDay(null)}
-              className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-            >
-              הצג הכל
-            </button>
-          </div>
-        )}
+        <div className="mb-2">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {viewMode === 'day' ? 'הזמנות ליום הנבחר' : viewMode === 'week' ? 'הזמנות לשבוע הנבחר' : 'הזמנות לחודש הנבחר'}
+          </p>
+        </div>
 
-        {isLoading ? null : listBookings.length > 0 ? (
+        {isLoading || isError ? null : listBookings.length > 0 ? (
           <div className="space-y-2">
             {listBookings.map((b) => (
-              <BookingCard key={b.id} booking={b} showDate={!selectedDay} />
+              <BookingCard key={b.id} booking={b} showDate={viewMode !== 'day'} />
             ))}
           </div>
         ) : (
-          <div className="card text-center py-8">
-            <p className="text-3xl mb-2">📅</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {selectedDay
-                ? 'אין הזמנות ביום זה'
-                : 'אין הזמנות בחודש זה'}
-            </p>
+          <div className="card">
+            <EmptyState
+              title={viewMode === 'day' ? 'אין הזמנות ביום זה' : viewMode === 'week' ? 'אין הזמנות בשבוע זה' : 'אין הזמנות בחודש זה'}
+              description="אפשר ללחוץ על סלוט ביומן כדי ליצור הזמנה חדשה מיד"
+            />
           </div>
         )}
       </section>

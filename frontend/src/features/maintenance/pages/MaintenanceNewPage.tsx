@@ -62,12 +62,9 @@ export default function MaintenanceNewPage() {
         status: 'open',
         createdByUserId: user.uid,
         createdByPartnerId: partner?.id ?? null,
-        assignedToUserId: null,
         attachmentCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        resolvedAt: null,
-        closedAt: null,
       })
       toast.success('קריאת התחזוקה נפתחה בהצלחה')
       queryClient.invalidateQueries({ queryKey: ['maintenance_tickets', activeBoatId] })

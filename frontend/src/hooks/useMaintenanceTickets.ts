@@ -1,4 +1,4 @@
-import { collection, query, where, orderBy, doc, type DocumentData } from 'firebase/firestore'
+import { collection, query, where, doc, type DocumentData } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useBoat } from '@/context/BoatContext'
 import { useFirestoreQuery } from './useFirestoreQuery'
@@ -54,18 +54,23 @@ function docToAttachment(id: string, data: DocumentData): MaintenanceAttachment 
 
 export function useMaintenanceTickets() {
   const { activeBoatId } = useBoat()
-  return useFirestoreQuery(
+  const result = useFirestoreQuery(
     ['maintenance_tickets', activeBoatId],
     activeBoatId
       ? () =>
           query(
             collection(db, 'maintenance_tickets'),
             where('boatId', '==', activeBoatId),
-            orderBy('createdAt', 'desc'),
           )
       : null,
     docToTicket,
   )
+
+  const data = result.data
+    ?.slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+  return { ...result, data }
 }
 
 export function useMaintenanceTicket(ticketId: string | undefined) {
@@ -77,23 +82,28 @@ export function useMaintenanceTicket(ticketId: string | undefined) {
 }
 
 export function useMaintenanceUpdates(ticketId: string | undefined) {
-  return useFirestoreQuery(
+  const result = useFirestoreQuery(
     ['maintenance_updates', ticketId],
     ticketId
       ? () =>
           query(
             collection(db, 'maintenance_updates'),
             where('ticketId', '==', ticketId),
-            orderBy('createdAt', 'asc'),
           )
       : null,
     docToUpdate,
   )
+
+  const data = result.data
+    ?.slice()
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+
+  return { ...result, data }
 }
 
 export function useMaintenanceAttachments(ticketId: string | undefined) {
   const { activeBoatId } = useBoat()
-  return useFirestoreQuery(
+  const result = useFirestoreQuery(
     ['maintenance_attachments', ticketId],
     activeBoatId && ticketId
       ? () =>
@@ -101,9 +111,14 @@ export function useMaintenanceAttachments(ticketId: string | undefined) {
             collection(db, 'maintenance_attachments'),
             where('boatId', '==', activeBoatId),
             where('ticketId', '==', ticketId),
-            orderBy('createdAt', 'desc'),
           )
       : null,
     docToAttachment,
   )
+
+  const data = result.data
+    ?.slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+  return { ...result, data }
 }

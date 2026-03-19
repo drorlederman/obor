@@ -231,6 +231,18 @@ export interface RestoreBackupResult {
 }
 
 // ============================================================
+// Weather
+// ============================================================
+
+export interface RefreshWeatherSnapshotNowInput {
+  boatId: string
+}
+
+export interface RefreshWeatherSnapshotNowResult {
+  success: boolean
+}
+
+// ============================================================
 // Callable references
 // ============================================================
 
@@ -264,3 +276,9 @@ export const addMaintenanceUpdateFn = httpsCallable<AddMaintenanceUpdateInput, A
 // Backup
 export const createSystemBackupFn = httpsCallable<CreateSystemBackupInput, CreateSystemBackupResult>(functions, 'createSystemBackup')
 export const restoreBackupFn = httpsCallable<RestoreBackupInput, RestoreBackupResult>(functions, 'restoreBackup')
+
+// Weather
+export const refreshWeatherSnapshotNowFn = httpsCallable<RefreshWeatherSnapshotNowInput, RefreshWeatherSnapshotNowResult>(
+  functions,
+  'refreshWeatherSnapshotNow',
+)

@@ -23,12 +23,19 @@ service cloud.firestore {
 
     function isActiveIn(boatId) {
       let m = getMembership(boatId);
-      return isAuthenticated() && m != null && m.status == 'active';
+      let memberDoc = get(/databases/$(database)/documents/boat_members/$(uid() + '_' + boatId));
+      return isAuthenticated() && (
+        (m != null && m.status == 'active') ||
+        (m == null && memberDoc.data != null && memberDoc.data.status == 'active')
+      );
     }
 
     function getRoleIn(boatId) {
       let m = getMembership(boatId);
-      return m != null ? m.role : null;
+      let memberDoc = get(/databases/$(database)/documents/boat_members/$(uid() + '_' + boatId));
+      return m != null && m.status == 'active'
+        ? m.role
+        : (memberDoc.data != null && memberDoc.data.status == 'active' ? memberDoc.data.role : null);
     }
 
     function hasRoleIn(boatId, role) {
@@ -330,6 +337,15 @@ service cloud.firestore {
         && request.resource.data.uploadedByUserId == uid();
       // Delete: admin only
       allow delete: if isAuthenticated() && isAdminOf(resource.data.boatId);
+    }
+
+    // ============================================================
+    // weather_snapshots — active members read; writes via Cloud Functions
+    // ============================================================
+
+    match /weather_snapshots/{boatId} {
+      allow read: if isAuthenticated() && isActiveIn(boatId);
+      // No client writes
     }
 
     // ============================================================

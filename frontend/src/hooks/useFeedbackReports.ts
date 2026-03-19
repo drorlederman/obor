@@ -1,4 +1,4 @@
-import { collection, query, where, orderBy, type DocumentData } from 'firebase/firestore'
+import { collection, query, where, type DocumentData } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useBoat } from '@/context/BoatContext'
 import { useAuth } from '@/context/AuthContext'
@@ -25,18 +25,23 @@ export function useFeedbackReports() {
   const { activeBoatId, isAdmin } = useBoat()
   const { user } = useAuth()
 
-  return useFirestoreQuery(
+  const result = useFirestoreQuery(
     ['feedback_reports', activeBoatId, user?.uid, isAdmin],
     activeBoatId && user
       ? () => {
           const constraints = [
             where('boatId', '==', activeBoatId),
             ...(!isAdmin ? [where('userId', '==', user.uid)] : []),
-            orderBy('createdAt', 'desc'),
           ]
           return query(collection(db, 'feedback_reports'), ...constraints)
         }
       : null,
     docToFeedback,
   )
+
+  const data = result.data
+    ?.slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+  return { ...result, data }
 }

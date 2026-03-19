@@ -1,4 +1,4 @@
-import { collection, query, where, orderBy, type DocumentData } from 'firebase/firestore'
+import { collection, query, where, type DocumentData } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useBoat } from '@/context/BoatContext'
 import { useFirestoreQuery } from './useFirestoreQuery'
@@ -21,17 +21,21 @@ function docToAnnouncement(id: string, data: DocumentData): Announcement {
 
 export function useAnnouncements() {
   const { activeBoatId } = useBoat()
-  return useFirestoreQuery(
+  const result = useFirestoreQuery(
     ['announcements', activeBoatId],
     activeBoatId
       ? () =>
           query(
             collection(db, 'announcements'),
             where('boatId', '==', activeBoatId),
-            where('isActive', '==', true),
-            orderBy('createdAt', 'desc'),
           )
       : null,
     docToAnnouncement,
   )
+
+  const data = result.data
+    ?.filter((item) => item.isActive)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+  return { ...result, data }
 }
